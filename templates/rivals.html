@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Rivais · Social Empires{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('css', path='rivals.css') }}">{% endblock %}
-{% block body_class %}rivals-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('css', path='portal-shell.css') }}"><link rel="stylesheet" href="{{ url_for('css', path='rivals.css') }}">{% endblock %}
+{% block body_class %}portal-modern rivals-page{% endblock %}
 {% block main_class %}rivals-main{% endblock %}
 {% macro icon(name) -%}
 <svg class="rivals-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">

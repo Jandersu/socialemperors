@@ -1,22 +1,4 @@
-.rivals-page {
-    --rivals-muted: #626d7d;
-    --rivals-line: #e3e7ee;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 14px;
-    color: #202b3d;
-    background: #f6f7fa;
-    display: flex;
-    flex-direction: column;
-    min-height: 100dvh;
-}
-.rivals-page .site-header { border-top: 0; border-bottom-color: var(--rivals-line); }
-.rivals-page .header-inner { max-width: 1176px; min-height: 76px; }
-.rivals-page .brand img { width: 105px; height: auto; }
-.rivals-page .header-nav { gap: 22px; font-size: 13px; }
-.rivals-page .account-name { display: none; }
-.rivals-page .header-nav a, .rivals-page .nav-button { text-decoration: none; }
-.rivals-page .header-nav a[aria-current="page"] { border: 0; color: var(--blue); font-weight: 650; }
-.rivals-page .site-footer { margin-top: auto; padding: 30px 16px 24px; color: var(--rivals-muted); }
+.rivals-page { --rivals-muted: var(--portal-muted); --rivals-line: var(--portal-line); }
 .rivals-main { width: min(1120px, calc(100% - 56px)); margin: 44px auto 0; }
 .rivals-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 26px; }
 .rivals-heading h1 { margin: 0 0 5px; font-size: 32px; font-weight: 650; line-height: 1.2; letter-spacing: -.9px; }
@@ -100,7 +82,6 @@
 .rivals-result.is-victory { background: #edf7f1; border-color: #d4e5db; }
 .rivals-result strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .rivals-result p { font-size: 13px; }
-.rivals-page :focus-visible { outline: 3px solid #5877b4; outline-offset: 4px; }
 .rivals-tabs a:focus-visible { outline-offset: -5px; border-radius: 3px; }
 .rivals-panel:focus-visible { outline-offset: -4px; }
 @media (max-width: 1000px) {
@@ -109,8 +90,6 @@
     .rivals-stats { gap: 26px; }
 }
 @media (max-width: 800px) {
-    .rivals-page .header-inner { padding: 12px 20px; gap: 18px; }
-    .rivals-page .header-nav { gap: 10px 18px; justify-content: flex-end; }
     .rivals-main { width: calc(100% - 40px); margin-top: 30px; }
     .rivals-own-overview { align-items: flex-start; flex-direction: column; gap: 20px; padding: 22px; }
     .rivals-stats { gap: 40px; flex-wrap: wrap; }
@@ -125,10 +104,6 @@
     .rivals-history-main { flex-direction: column; gap: 5px; }
 }
 @media (max-width: 540px) {
-    .rivals-page .header-inner { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px 8px; }
-    .rivals-page .brand img { width: 86px; }
-    .rivals-page .header-nav { width: 100%; justify-content: flex-start; gap: 0 20px; }
-    .rivals-page .header-nav a, .rivals-page .nav-button { display: inline-flex; align-items: center; min-height: 38px; font-size: 12px; }
     .rivals-main { width: calc(100% - 32px); margin-top: 28px; }
     .rivals-heading { align-items: flex-start; gap: 12px; margin-bottom: 22px; }
     .rivals-heading h1 { font-size: 29px; }

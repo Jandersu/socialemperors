@@ -4,6 +4,7 @@ slug: "templates-rivals-html"
 primary_target: "templates/rivals.html"
 related_targets:
   - "templates/css/rivals.css"
+  - "templates/css/portal-shell.css"
   - "templates/js/rivals.js"
 ---
 

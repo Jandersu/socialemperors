@@ -16,9 +16,11 @@ Não haverá pagamentos. O dinheiro usado para acelerar tarefas permanece, distr
 
 A interface e os textos do jogo são em português do Brasil. A preferência explícita é preservar o visual das artes originais. Melhorias de nitidez não significam que todo o acervo antigo tenha resolução HD.
 
-## Direção atual para Rivais
+## Direção atual para Rivais e Tesouro
 
-O pedido atual é refazer somente a tela **Rivais** com aparência minimalista e moderna e apenas o texto necessário. Ela deve facilitar comparar vilas, atacar e consultar classificação e resultados. Deve herdar a identidade azul, o logo e a navegação existentes, preservando as regras de combate e os controles de segurança. Esse pedido não implica redesenhar as demais telas nem alterar as artes do jogo.
+O redesenho autorizado abrange as telas **Rivais** e **Tesouro**, com aparência minimalista e moderna e apenas o texto necessário. Rivais deve facilitar comparar vilas, atacar e consultar classificação e resultados. Tesouro deve seguir a mesma direção visual e facilitar consultar o saldo, resgatar o bônus inicial e a recompensa diária e acompanhar os resgates.
+
+As duas telas devem herdar a identidade azul, o logo e a navegação existentes, preservando os controles de segurança, as regras de combate e a economia gratuita. Esse pedido não implica redesenhar outras rotas nem alterar as artes do jogo.
 
 ## Limites e questões em aberto
 

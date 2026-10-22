@@ -44,16 +44,6 @@
 .management-history dl > div { display: flex; gap: 6px; }
 .management-history dt { color: var(--muted); }
 .management-history dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.treasury-main { max-width: 840px; }
-.treasury-balance { display: flex; justify-content: space-between; gap: 20px; padding: 20px 0; margin-bottom: 28px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.treasury-balance dt { color: var(--muted); }
-.treasury-balance dd { margin: 0; color: var(--ink); font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.treasury-reward { max-width: 65ch; }
-.treasury-reward h2 { margin-bottom: 8px; font-size: 1.3rem; }
-.treasury-reward p + p { margin-top: 10px; }
-.treasury-reward form { margin-top: 20px; }
-.treasury-rules { padding-left: 20px; max-width: 65ch; }
-.treasury-rules li + li { margin-top: 8px; }
 @media (max-width: 680px) {
     .management-main { margin-top: 28px; padding: 0 20px; }
     .management-heading { display: block; }
@@ -68,5 +58,4 @@
     .management-table td:first-child::before { display: none; }
     .management-resources { max-width: 380px; }
     .management-fields { grid-template-columns: minmax(0, 1fr); }
-    .treasury-balance { align-items: baseline; }
 }

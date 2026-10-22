@@ -1,0 +1,31 @@
+/* Shared shell for the portal's minimal task screens. */
+.portal-modern {
+    --portal-muted: #626d7d;
+    --portal-line: #e3e7ee;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    color: #202b3d;
+    background: #f6f7fa;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+.portal-modern .site-header { border-top: 0; border-bottom-color: var(--portal-line); }
+.portal-modern .header-inner { max-width: 1176px; min-height: 76px; }
+.portal-modern .brand img { width: 105px; height: auto; }
+.portal-modern .header-nav { gap: 22px; font-size: 13px; }
+.portal-modern .account-name { display: none; }
+.portal-modern .header-nav a, .portal-modern .nav-button { text-decoration: none; }
+.portal-modern .header-nav a[aria-current="page"] { border: 0; color: var(--blue); font-weight: 650; }
+.portal-modern .site-footer { margin-top: auto; padding: 30px 16px 24px; color: var(--portal-muted); }
+.portal-modern :focus-visible { outline: 3px solid #5877b4; outline-offset: 4px; }
+@media (max-width: 800px) {
+    .portal-modern .header-inner { padding: 12px 20px; gap: 18px; }
+    .portal-modern .header-nav { gap: 10px 18px; justify-content: flex-end; }
+}
+@media (max-width: 540px) {
+    .portal-modern .header-inner { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px 8px; }
+    .portal-modern .brand img { width: 86px; }
+    .portal-modern .header-nav { width: 100%; justify-content: flex-start; gap: 0 20px; }
+    .portal-modern .header-nav a, .portal-modern .nav-button { display: inline-flex; align-items: center; min-height: 38px; font-size: 12px; }
+}
