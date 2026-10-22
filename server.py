@@ -43,6 +43,8 @@ from pvp import RaidService, RaidError
 from admin_villages import AdminVillageService, AdminVillageError, AdminVillageConflict, EDITABLE_FIELDS, RESOURCE_LIMIT, CASH_LIMIT
 from economy import EconomyService, EconomyError
 from swf_private_economy import patch_private_economy
+from swf_tutorial import patch_tutorial
+from tutorial import TutorialError
 from bundle import ASSETS_DIR, STUB_DIR, TEMPLATES_DIR, BASE_DIR
 
 host = os.environ.get('HOST', '127.0.0.1')
@@ -614,7 +616,7 @@ def static_assets_loader(path):
 @lru_cache(maxsize=1)
 def portuguese_game_movie():
     original = (Path(ASSETS_DIR) / 'flash' / GAME_VERSION).read_bytes()
-    translated = patch_private_economy(localize_swf(original))
+    translated = patch_tutorial(patch_private_economy(localize_swf(original)))
     return translated, hashlib.sha256(translated).hexdigest()
 
 ## GAME DYNAMIC
@@ -720,7 +722,7 @@ def command_response():
         validate_game_key(USERID)
         try:
             command(USERID, data)
-        except VillageNameError as exc:
+        except (VillageNameError, TutorialError) as exc:
             abort(400, description=str(exc))
     
     return ({"result": "success"}, 200)

@@ -9,16 +9,5 @@
             "description": "None.",
             "reward": 0
         }
-    },
-    {
-        "op": "add",
-        "path": "/missions/-",
-        "value": {
-            "id": 1,
-            "title": "Unknown-Mock_id1",
-            "hint": "",
-            "description": "None.",
-            "reward": 0
-        }
     }
 ]

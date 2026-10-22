@@ -5,6 +5,7 @@ from get_game_config import get_game_config, get_level_from_xp, get_name_from_it
 from constants import Constant
 from engine import apply_cost, apply_collect, apply_collect_xp, timestamp_now
 from village_names import set_village_name
+from tutorial import record_tutorial_step
 
 def get_strategy_type(id):
     if id == 8:
@@ -61,10 +62,7 @@ def do_command(USERID, cmd, args):
     elif cmd == Constant.CMD_COMPLETE_TUTORIAL:
         tutorial_step = args[0]
         print("Tutorial step", tutorial_step, "reached.")
-        if tutorial_step >= 31: # 31 is Dragon choosing. After that, you have some freedom. There's at least until step 45.
-            print("Tutorial COMPLETED!")
-            save["playerInfo"]["completed_tutorial"] = 1
-            save["privateState"]["dragonNestActive"] = 1 
+        record_tutorial_step(save, tutorial_step)
     
     elif cmd == Constant.CMD_MOVE:
         ix = args[0]
@@ -88,11 +86,20 @@ def do_command(USERID, cmd, args):
         y = args[1]
         town_id = args[2]
         id = args[3]
-        num_units_contained_when_harvested = args[4]#TODO does this affect multiplier?
+        num_units_contained_when_harvested = args[4]
         resource_multiplier = args[5]
         cash_to_substract = args[6]
         print("Collect", str(get_name_from_item_id(id)))
         map = save["maps"][town_id]
+        # Natural deposits require a worker. Native scenario cleanup can emit
+        # collect_new with zero workers before HARV/CLEAN removes the scenery;
+        # that is not a harvest and must not grant resources, XP or cash costs.
+        # A late/repeated harvest also needs its original deposit to remain.
+        natural_resource = str(get_attribute_from_item_id(id, 'subcat_functional')) in ('125', '126', '127')
+        if natural_resource and (num_units_contained_when_harvested <= 0 or not any(
+                item[0] == id and item[1] == x and item[2] == y for item in map['items'])):
+            print("Ignoring scenery cleanup or an already removed resource.")
+            return
         apply_collect(save["playerInfo"], map, id, resource_multiplier)
         save["playerInfo"]["cash"] = max(save["playerInfo"]["cash"] - cash_to_substract, 0)
     

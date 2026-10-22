@@ -88,6 +88,20 @@ Os recursos são atualizados nos saves assim que o saque termina. Uma vila já a
 
 O saque é protegido contra submissões repetidas e não aceita vitória ou quantidade de recursos informadas pelo navegador. A economia legada, porém, ainda confia em parâmetros do cliente em comandos de compra, coleta, bônus e missões. Esses caminhos podem alterar o exército ou os recursos do próprio jogador indevidamente. Portanto, esta implementação serve para **beta com participantes controlados**; ainda não está pronta para competição pública resistente a trapaças.
 
+### Tutorial e retomada
+
+O progresso do tutorial fica em `privateState.startingTutorialStep`, separado da flag `completed_tutorial`. Ao reabrir a vila, o cliente retoma um ponto seguro: seleções de unidades, ordens de movimento e objetos em colocação são reconstruídos pelas etapas apropriadas. As sete lições iniciais terminam na etapa interna **15**, e a continuação ligada às missões também tem seu progresso salvo. A liberação permanece na etapa **31**, quando começa a última sequência de corte de árvores.
+
+As transições também restauram a entrada do mapa pelo método nativo do jogo. Isso evita o bloqueio de cliques quando uma janela de treinamento ou da loja desaparece enquanto o ponteiro ainda está sobre ela.
+
+Saves antigos sem checkpoint são reconciliados pelos objetivos que já existem no mapa. Uma árvore do tutorial já colhida não precisa reaparecer nem ser cortada novamente; o fluxo continua pela construção. A recuperação altera somente metadados do tutorial e preserva unidades, construções, recursos, XP e nível.
+
+No carregamento, a produção aguarda a inicialização dos aldeões contidos nas construções, inclusive durante o tutorial. Isso evita que depósitos vazios sejam colhidos automaticamente antes de o mapa ficar pronto, desaparecendo e gerando saltos de XP e nível. O servidor também ignora coletas de depósitos naturais sem aldeões ou já removidos; produção regular de moinhos e plantações continua funcionando.
+
+Na sequência final, árvores dos três alvos que já foram colhidas contam como concluídas. A missão de construir uma plantação usa a definição original, com instruções em português e recompensa de 10 moedas de ouro.
+
+Após atualizar o código, reinicie o servidor e recarregue a aba do jogo para receber o cliente corrigido. A cópia original do SWF continua preservada; o servidor prepara a versão com retomada em memória.
+
 ### Qualidade visual
 
 O player acompanha a resolução da área do jogo e a densidade de pixels da tela, incluindo telas Retina. A suavização solicita qualidade `16x16`, limitada automaticamente ao que a GPU suporta. As artes dos botões **Construir** e **Dinheiro** usam texturas com quatro vezes a resolução em cada dimensão, com ajuste das coordenadas para manter seu tamanho e suas áreas de clique.

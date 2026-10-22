@@ -231,6 +231,50 @@ class ManagementTests(unittest.TestCase):
                 self.assertEqual(self.player.post('/treasury/claim', data={'csrf_token': self.csrf(self.player), 'action': 'daily'}).status_code, 503)
         self.assertEqual(sessions.session(self.player_id), before)
 
+    def test_tutorial_load_recovers_a_consumed_target_without_replaying_rewards(self):
+        save = sessions.session(self.player_id)
+        save['privateState'].pop('startingTutorialStep', None)
+        save['maps'][0]['items'] = [item for item in save['maps'][0]['items']
+                                  if item[:3] != [19, 50, 58]]
+        save['maps'][0]['items'].append([500, 53, 53, 0, 0, 0, [], {}])
+        save['maps'][0].update(xp=151, level=4)
+        before = copy.deepcopy(save)
+        config = self.game_config()
+        for _ in range(2):
+            response = self.player.post(server.DYNAMIC_GAME_PREFIX + 'get_player_info.php', data={
+                'USERID': self.player_id, 'user_key': config['userKey'],
+                'language': 'en', 'client_id': 'tutorial-regression',
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json['privateState']['startingTutorialStep'], 8)
+            self.assertEqual(response.json['playerInfo']['completed_tutorial'], 0)
+            self.assertEqual(save['maps'], before['maps'])
+            self.assertEqual(save['playerInfo']['cash'], before['playerInfo']['cash'])
+        persisted = json.loads((self.saves_path / (self.player_id + '.save.json')).read_text())
+        self.assertEqual(persisted['privateState']['startingTutorialStep'], 8)
+        self.assertEqual(persisted['maps'], before['maps'])
+
+    def test_native_tutorial_finish_persists_and_admin_can_reopen_it(self):
+        config = self.game_config()
+        before = copy.deepcopy(sessions.session(self.player_id)['maps'])
+        response = self.post_command(config, [{'cmd': 'complete_tutorial', 'args': [15]}])
+        self.assertEqual(response.status_code, 200)
+        save = sessions.session(self.player_id)
+        self.assertEqual(save['playerInfo']['completed_tutorial'], 0)
+        self.assertEqual(save['privateState']['startingTutorialStep'], 15)
+        response = self.post_command(config, [{'cmd': 'complete_tutorial', 'args': [31]}])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(save['playerInfo']['completed_tutorial'], 1)
+        self.assertEqual(save['privateState']['startingTutorialStep'], 31)
+        self.assertEqual(save['maps'], before)
+        response = self.post_command(config, [{'cmd': 'complete_tutorial', 'args': [3]}])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(save['privateState']['startingTutorialStep'], 31)
+        response = self.admin.post(self.edit_path, data=self.form(tutorial_complete='0'))
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(save['playerInfo']['completed_tutorial'], 0)
+        self.assertNotIn('startingTutorialStep', save['privateState'])
+
 
 if __name__ == '__main__':
     unittest.main()

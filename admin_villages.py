@@ -275,6 +275,9 @@ class AdminVillageService:
             else:
                 complete = _integer(complete, 'conclusão do tutorial', 0, 1)
             after['playerInfo']['completed_tutorial'] = complete
+            if not complete and save['playerInfo'].get('completed_tutorial', 0) == 1:
+                # A finished checkpoint must not undo the administrator's reset.
+                after['privateState'].pop('startingTutorialStep', None)
         before_public, after_public = _editable_snapshot(save), _editable_snapshot(after)
         changed_fields = [key for key in ('name', *RESOURCE_KEYS, 'cash', 'level', 'xp', 'tutorial_complete')
                           if (before_public['resources'][key] != after_public['resources'][key]
