@@ -5,45 +5,9 @@
 .village-settings { max-width: 760px; }
 .village-name-form { display: grid; justify-items: start; gap: 22px; max-width: 540px; background: var(--surface); padding: 28px; border: 1px solid var(--line); border-radius: 12px; }
 .village-name-form .form-field, .village-name-form .notice { width: 100%; }
-.rivals-summary { padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 22px; }
-.rivals-summary h2 { margin-bottom: 8px; }
-.rivals-summary p { max-width: 72ch; }
-.rivals-summary p + p { margin-top: 8px; }
-.rules-details { margin: 18px 0 28px; }
-.rules-details summary { color: var(--blue); font-weight: 700; cursor: pointer; padding: 8px 0; }
-.rules-details ul { max-width: 72ch; padding-left: 24px; }
-.rules-details li + li { margin-top: 7px; }
-.community-section { margin-top: 36px; }
-.community-section h2 { font-size: 1.3rem; margin-bottom: 16px; }
-.rivals-list { border-top: 1px solid var(--line); }
-.rival-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 28px; padding: 22px 0; border-bottom: 1px solid var(--line); }
-.rival-row h3 { font-size: 1rem; color: var(--ink); margin: 0 0 4px; overflow-wrap: anywhere; }
-.rival-row p { color: var(--muted); font-size: .93rem; }
-.rival-row .rival-strength { margin-top: 8px; color: var(--text); font-variant-numeric: tabular-nums; }
-.rival-action { display: flex; align-items: flex-end; flex-direction: column; gap: 8px; max-width: 280px; }
-.rival-action p { text-align: right; }
-.resource-amounts { display: flex; flex-wrap: wrap; gap: 4px 16px; font-variant-numeric: tabular-nums; font-size: .93rem; }
-.resource-amounts span { white-space: nowrap; }
-.community-empty { padding: 24px 0; max-width: 68ch; color: var(--muted); }
-.community-table { width: 100%; text-align: left; border-collapse: collapse; font-size: .93rem; }
-.community-table th { font-size: .85rem; color: var(--muted); font-weight: 700; }
-.community-table td, .community-table th { padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-.community-table td:first-child, .community-table th:first-child { padding-left: 0; }
-.community-table .numeric { text-align: right; font-variant-numeric: tabular-nums; }
-.community-table strong { color: var(--ink); overflow-wrap: anywhere; }
-.history-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
-.history-list li { padding: 18px 0; border-bottom: 1px solid var(--line); }
-.history-list p + p { margin-top: 6px; }
-.history-list time, .history-list .battle-strength { font-size: .85rem; color: var(--muted); }
-.history-result { font-weight: 700; color: var(--ink); }
-.result-notice { margin: 20px 0; }
 @media (max-width: 680px) {
     .community-main { margin-top: 28px; padding: 0 20px; }
     .community-heading { display: block; }
     .community-heading .button { margin-top: 18px; }
     .village-name-form { padding: 22px; }
-    .rival-row { grid-template-columns: 1fr; gap: 14px; }
-    .rival-action { align-items: flex-start; max-width: none; }
-    .rival-action p { text-align: left; }
-    .community-table td, .community-table th { padding-inline: 8px; }
 }
