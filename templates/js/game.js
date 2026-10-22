@@ -3,7 +3,9 @@
     "use strict";
 
     const config = JSON.parse(document.getElementById("game-config").textContent);
-    const base = new URL(config.baseUrl);
+    // The public scheme, host and port belong to the browser. A TLS proxy may
+    // forward HTTP to Flask, so its absolute URL can otherwise cause mixed content.
+    const base = new URL(config.baseUrl, window.location.href);
     const runtimePath = new URL("vendor/ruffle/", base).href;
     const staticPath = new URL("default01.static.socialpointgames.com/static/socialempires/", base).href;
     const dynamicPath = new URL("dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/", base).href;

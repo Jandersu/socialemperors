@@ -7,7 +7,7 @@
     <link rel="icon" href="{{ url_for('images', path='icon.gif') }}">
     <link rel="stylesheet" href="{{ url_for('css', path='game.css') }}">
     <script id="game-config" type="application/json">{{ {
-        'baseUrl': request.url_root,
+        'baseUrl': request.script_root ~ '/',
         'gameVersion': GAMEVERSION,
         'userId': save_info.userid,
         'userKey': game_user_key | default(csrf_token()),
@@ -18,7 +18,7 @@
         'raidRevision': raid_revision | default(''),
         'eventsUrl': url_for('village_events'),
     } | tojson }}</script>
-    <script src="/js/game.js" defer></script>
+    <script src="{{ url_for('javascript', path='game.js') }}" defer></script>
 </head>
 <body class="tab-expanded">
     <a class="skip-link" href="#vila">Ir para a vila</a>

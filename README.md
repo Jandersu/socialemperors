@@ -126,7 +126,35 @@ Faça backup de **contas, chave, os três journals e saves juntos**, com o servi
 | `SECRET_KEY` | Chave opcional de pelo menos 32 caracteres; mantenha estável entre reinícios. |
 | `COOKIE_SECURE=1` | Envia o cookie de sessão somente por HTTPS; use com HTTPS configurado. |
 
-O comando `server.py` inicia um servidor local de desenvolvimento. Para hospedagem pública, configure HTTPS e um servidor WSGI com **um processo e uma thread**, pois o motor legado mantém as vilas em memória. Vários processos independentes podem sobrescrever o progresso uns dos outros. O cliente já utiliza a origem da página, incluindo domínio, HTTPS e porta, em vez de um IP fixo. Se houver proxy reverso, ele deve preservar o host e informar o esquema HTTPS ao WSGI por uma configuração de proxy confiável.
+O comando `server.py` inicia um servidor local de desenvolvimento. Para hospedagem pública, configure HTTPS e um servidor WSGI com **um processo e uma thread**, pois o motor legado mantém as vilas em memória. Vários processos independentes podem sobrescrever o progresso uns dos outros.
+
+O cliente resolve os caminhos do Ruffle, dos assets e da API usando a URL pública no navegador, incluindo HTTPS, domínio e porta. O Flask pode receber HTTP do proxy sem gerar downloads HTTP dentro da página HTTPS. O proxy deve preservar o cabeçalho `Host`; não habilite confiança irrestrita em cabeçalhos `X-Forwarded-*` recebidos da internet.
+
+### Erro de carregamento atrás de HTTPS
+
+Se aparecer “Não foi possível baixar os arquivos do jogo deste servidor”, confira o console e a aba Rede do navegador. Antes da correção, o uso de `request.url_root` podia gerar `http://.../vendor/ruffle/ruffle.js` quando o proxy encerrava o HTTPS e encaminhava HTTP ao Flask. O navegador bloqueava esse script como conteúdo misto, sem enviar a requisição ao backend. Os arquivos do Ruffle já estão versionados; nesse caso, reinstalá-los não resolve.
+
+Depois de enviar a correção ao repositório remoto, atualize a instalação existente:
+
+```sh
+cd /root/socialemperors
+git pull --ff-only
+systemctl restart socialempires
+```
+
+Recarregue a página com **Ctrl+F5**. Não recrie a conta administrativa nem apague `instance/` ou `saves/` para corrigir esse erro.
+
+### Segurança da hospedagem
+
+O projeto tem aprovação de contas, hashes de senha, CSRF, isolamento de vilas, controles administrativos e limitação de tentativas de login. Isso não torna a configuração de desenvolvimento adequada para exposição pública. Para hospedar:
+
+- Execute um servidor WSGI com um processo e uma thread, usando um usuário de serviço sem privilégios. Não execute como `root` nem publique o servidor de desenvolvimento do Flask. O usuário precisa gravar somente os diretórios de dados e saves.
+- Redirecione HTTP para HTTPS no proxy e configure `COOKIE_SECURE=1` no ambiente do serviço. Considere HSTS no proxy depois de confirmar que o domínio funciona exclusivamente por HTTPS.
+- Permita acesso à porta do backend somente pelo proxy. Se ambos estiverem na mesma máquina, use loopback; se estiverem em máquinas diferentes, limite a porta no firewall ao IP privado do proxy.
+- Limite solicitações de cadastro e login no proxy. O cadastro ainda não tem limitação própria, e o cálculo de hashes pode ocupar o servidor. Sem configuração explícita de proxy confiável, a limitação de login considera o IP do proxy, compartilhado entre jogadores.
+- Mantenha o sistema e as dependências atualizados e faça backups consistentes dos dados conforme descrito acima.
+
+O motor legado ainda confia em valores de recursos, XP e compras enviados pelo cliente. Uma conta aprovada pode adulterar esses comandos e afetar outros jogadores pelos saques. **A economia ainda não oferece proteção suficiente contra trapaças para um jogo competitivo público.** Validar recompensas, custos e progressão no servidor exige uma revisão própria; HTTPS e aprovação de contas não resolvem essa limitação. Para um grupo privado, restrinja também o acesso de rede aos participantes enquanto essa revisão não for feita.
 
 ### Ruffle e compatibilidade
 

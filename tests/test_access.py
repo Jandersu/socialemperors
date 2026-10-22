@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -130,6 +131,25 @@ class AccessTests(unittest.TestCase):
         self.assertEqual(self.client.post(url, data=payload, headers={'Origin': 'https://attacker.example'}).status_code, 403)
         self.assertEqual(self.client.post(url, data=payload, headers={'Sec-Fetch-Site': 'cross-site'}).status_code, 403)
         self.assertEqual(self.client.get('/admin').status_code, 403)
+
+    def test_game_paths_remain_relative_behind_an_https_proxy(self):
+        self.create_player(status='approved')
+        self.login()
+        for prefix in ('', '/empire'):
+            with self.subTest(prefix=prefix):
+                page = self.client.get('/play.html', headers={
+                    'X-Forwarded-Proto': 'https',
+                    'X-Forwarded-Host': 'empire.example.test:8443',
+                }, environ_overrides={'SCRIPT_NAME': prefix})
+                self.assertEqual(page.status_code, 200)
+                configuration = json.loads(re.search(
+                    r'<script id="game-config" type="application/json">(.*?)</script>',
+                    page.text, re.S,
+                ).group(1))
+                self.assertEqual(configuration['baseUrl'], prefix + '/')
+                self.assertEqual(configuration['eventsUrl'], prefix + '/village/events')
+                self.assertIn(f'src="{prefix}/js/game.js"', page.text)
+                self.assertNotIn('http://', configuration['baseUrl'])
 
     def test_game_configuration_is_portuguese_with_bundled_font_language(self):
         self.create_player(status='approved')
