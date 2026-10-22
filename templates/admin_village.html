@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Gerenciar {{ village.name }} · Social Empires{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('css', path='management.css') }}">{% endblock %}
+{% block main_class %}management-main{% endblock %}
+{% block content %}
+<div class="management-heading">
+    <div><h1>Gerenciar {{ village.name }}</h1><p>Os valores informados substituem os saldos e o progresso atuais.</p></div>
+    <a class="button button-secondary" href="{{ url_for('admin_villages') }}">Voltar para as vilas</a>
+</div>
+<nav class="management-nav" aria-label="Administração">
+    <a href="{{ url_for('admin_accounts') }}">Contas</a>
+    <a href="{{ url_for('admin_villages') }}" aria-current="page">Vilas</a>
+</nav>
+<div class="village-owner">
+    <p><strong>Jogador:</strong> {{ account.name }}</p>
+    <p class="player-detail">{{ account.email }}</p>
+</div>
+<form class="management-form" action="{{ url_for('admin_village', account_id=account.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="expected_revision" value="{{ expected_revision | default(village.revision) }}">
+    {% if error %}<p class="notice notice-error" role="alert" id="management-error">{{ error }}</p>{% endif %}
+    <fieldset>
+        <legend>Vila e progresso</legend>
+        <div class="management-fields">
+            <div class="form-field field-full">
+                <label for="village-name">Nome da vila</label>
+                <input id="village-name" name="name" value="{{ values.name }}" minlength="2" maxlength="{{ limits.name_max_length }}" required autocomplete="off">
+            </div>
+            <div class="form-field">
+                <label for="village-level">Nível</label>
+                <input id="village-level" name="level" type="number" min="1" max="{{ limits.max_level }}" step="1" value="{{ values.level }}" required inputmode="numeric">
+            </div>
+            <div class="form-field">
+                <label for="village-tutorial">Tutorial</label>
+                <select id="village-tutorial" name="tutorial_complete">
+                    <option value="0" {% if values.tutorial_complete | string == '0' %}selected{% endif %}>Em andamento</option>
+                    <option value="1" {% if values.tutorial_complete | string == '1' %}selected{% endif %}>Concluído</option>
+                </select>
+            </div>
+        </div>
+    </fieldset>
+    <fieldset>
+        <legend>Recursos</legend>
+        <div class="management-fields">
+            {% for key, label in [('coins', 'Ouro'), ('wood', 'Madeira'), ('food', 'Comida'), ('stone', 'Pedra'), ('cash', 'Dinheiro para acelerar')] %}
+            <div class="form-field">
+                <label for="resource-{{ key }}">{{ label }}</label>
+                <input id="resource-{{ key }}" name="{{ key }}" type="number" min="0" max="{{ limits.cash_max if key == 'cash' else limits.resource_max }}" step="1" value="{{ values[key] }}" required inputmode="numeric">
+            </div>
+            {% endfor %}
+        </div>
+    </fieldset>
+    <div class="form-field">
+        <label for="change-reason">Motivo da alteração</label>
+        <textarea id="change-reason" name="reason" minlength="3" maxlength="200" required aria-describedby="reason-hint">{{ values.reason }}</textarea>
+        <span id="reason-hint" class="field-hint">Fica registrado no histórico junto com os valores anteriores e novos.</span>
+    </div>
+    <div class="form-actions">
+        <button class="button button-primary" type="submit" {% if conflict %}disabled{% endif %}>Salvar alterações</button>
+        {% if conflict %}
+        <a class="button button-secondary" href="{{ url_for('admin_village', account_id=account.id) }}">Recarregar dados da vila</a>
+        <p>Os valores digitados estão visíveis para consulta. Recarregue os dados atuais antes de fazer uma nova alteração.</p>
+        {% else %}<p>Se o jogador estiver com a vila aberta, ele verá um aviso para atualizá-la.</p>{% endif %}
+    </div>
+</form>
+<section class="management-section" aria-labelledby="history-title">
+    <h2 id="history-title">Histórico de alterações administrativas</h2>
+    {% if history %}
+    <ol class="management-history">
+        {% for entry in history %}
+        <li>
+            <p><strong>{{ entry.admin_name }}</strong></p>
+            <p class="audit-meta">{{ entry.created_label }}</p>
+            <p>{{ entry.reason }}</p>
+            <dl>
+                {% for change in entry.changes %}
+                <div><dt>{{ change.label }}:</dt><dd>{{ change.before }} → {{ change.after }}</dd></div>
+                {% endfor %}
+            </dl>
+        </li>
+        {% endfor %}
+    </ol>
+    {% else %}<p class="management-empty">As alterações feitas nesta tela serão registradas aqui.</p>{% endif %}
+</section>
+{% endblock %}

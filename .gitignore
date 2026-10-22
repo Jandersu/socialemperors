@@ -12,3 +12,6 @@ Include/
 Lib/
 Scripts/
 pyvenv.cfg
+instance/
+.env
+.impeccable/review/

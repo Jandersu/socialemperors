@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Rivais e saques · Social Empires{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('css', path='community.css') }}">{% endblock %}
+{% block main_class %}community-main{% endblock %}
+{% macro resources(amounts) -%}
+    <span>Ouro: {{ amounts.coins | game_number }}</span>
+    <span>Madeira: {{ amounts.wood | game_number }}</span>
+    <span>Comida: {{ amounts.food | game_number }}</span>
+    <span>Pedra: {{ amounts.stone | game_number }}</span>
+{%- endmacro %}
+{% block content %}
+    <div class="community-heading">
+        <div>
+            <h1>Rivais e saques</h1>
+            <p>Dispute recursos com outros jogadores. Os combates são resolvidos automaticamente usando os exércitos e as defesas das vilas.</p>
+        </div>
+        <a class="button button-secondary" href="{{ url_for('play') }}">Voltar para a vila</a>
+    </div>
+    {% if last_battle %}
+        <div class="notice {% if last_battle.won %}notice-success{% else %}notice-warning{% endif %} result-notice" role="status">
+            <strong>{% if last_battle.won %}Vitória contra {{ last_battle.defender_name }}!{% else %}A defesa de {{ last_battle.defender_name }} venceu.{% endif %}</strong>
+            <p>{% if last_battle.won %}Os recursos saíram da vila rival e já foram adicionados à sua vila.{% else %}Você não saqueou recursos neste ataque.{% endif %}</p>
+            {% if last_battle.won %}<p class="resource-amounts">{{ resources(last_battle.loot) }}</p>{% endif %}
+        </div>
+    {% endif %}
+    <div class="rivals-summary">
+        <h2>{{ own.name }}</h2>
+        <p>Nível {{ own.level }} · {{ own.combatants }} tropas combatentes · Ataque <strong>{{ own.attack_power | game_number }}</strong> · Defesa <strong>{{ own.defense_power | game_number }}</strong></p>
+        <p class="resource-amounts">{{ resources(own.resources) }}</p>
+        {% if not own.tutorial_complete %}<p>Conclua o tutorial para atacar e liberar sua vila para os saques.</p>{% endif %}
+    </div>
+    <p>Uma vitória permite saquear <strong>{{ rules.loot_percent }}% de cada recurso</strong> da vila rival. Tropas e construções permanecem na vila após o combate. Reabra a vila para ver os saldos atualizados no jogo.</p>
+    <details class="rules-details">
+        <summary>Como funcionam os ataques</summary>
+        <ul>
+            <li>{{ rules.power_description }}</li>
+            <li>Você pode atacar uma vez a cada {{ rules.attack_cooldown_seconds // 60 }} minutos e o mesmo rival uma vez a cada {{ rules.pair_cooldown_seconds // 3600 }} horas.</li>
+            <li>Uma vila saqueada recebe {{ rules.defender_protection_seconds // 60 }} minutos de proteção.</li>
+            <li>Vilas em tutorial ficam protegidas. Na sua faixa atual, a diferença entre níveis pode ser de até {{ rules.max_level_gap }}.</li>
+            <li>O saque usa os recursos disponíveis no momento do ataque, com valores arredondados para baixo. Dinheiro premium não é saqueado.</li>
+        </ul>
+    </details>
+    <section aria-labelledby="rivals-title" class="community-section">
+        <h2 id="rivals-title">Vilas rivais</h2>
+        {% if rivals %}
+            <div class="rivals-list">
+            {% for rival in rivals %}
+                <article class="rival-row">
+                    <div>
+                        <h3>{{ rival.name }}</h3>
+                        <p>Nível {{ rival.level }} · {{ rival.combatants }} tropas · {{ rival.defenses }} estruturas de defesa</p>
+                        <p class="rival-strength">Sua força de ataque: {{ own.attack_power | game_number }} · Defesa rival: {{ rival.defense_power | game_number }}</p>
+                        <p>Saque possível em caso de vitória:</p>
+                        <p class="resource-amounts">{{ resources(rival.estimated_loot) }}</p>
+                    </div>
+                    <div class="rival-action">
+                        <form method="post" action="{{ url_for('raid_village', defender_id=rival.userid) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="raid_token" value="{{ rival.raid_token }}">
+                            <button class="button button-primary" type="submit" {% if not rival.can_attack %}disabled aria-describedby="blocked-{{ loop.index }}"{% endif %}>Atacar e saquear {{ rules.loot_percent }}%</button>
+                        </form>
+                        {% if not rival.can_attack %}
+                            <p id="blocked-{{ loop.index }}">{{ rival.blocked_reason }}</p>
+                            {% if rival.available_at > server_now and own.tutorial_complete and rival.tutorial_complete %}<p>Disponível a partir de <time data-timestamp="{{ rival.available_at }}">{{ rival.available_at | game_datetime }}</time>.</p>{% endif %}
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p class="community-empty">Ainda não há outras contas aprovadas com vilas. Quando outro jogador entrar, a vila dele aparecerá aqui.</p>
+        {% endif %}
+    </section>
+    <section aria-labelledby="ranking-title" class="community-section">
+        <h2 id="ranking-title">Classificação</h2>
+        <table class="community-table">
+            <thead><tr><th scope="col">Vila</th><th scope="col" class="numeric">Vitórias</th><th scope="col" class="numeric">Recursos saqueados</th></tr></thead>
+            <tbody>{% for player in ranking %}<tr>
+                <td>{{ player.position }}. <strong>{{ player.name }}</strong>{% if player.userid == own.userid %} (você){% endif %}</td>
+                <td class="numeric">{{ player.wins | game_number }}</td>
+                <td class="numeric">{{ player.loot_total | game_number }}</td>
+            </tr>{% endfor %}</tbody>
+        </table>
+    </section>
+    <section aria-labelledby="history-title" class="community-section">
+        <h2 id="history-title">Ataques e defesas recentes</h2>
+        {% if history %}
+            <ol class="history-list">{% for battle in history %}<li>
+                <p class="history-result">{% if battle.role == 'attacker' %}{% if battle.won %}Você saqueou{% else %}Seu ataque foi defendido por{% endif %} {{ battle.enemy_name }}.{% else %}{% if battle.won %}Sua vila foi saqueada por{% else %}Você defendeu sua vila de{% endif %} {{ battle.enemy_name }}.{% endif %}</p>
+                <time data-timestamp="{{ battle.created_at }}">{{ battle.created_at | game_datetime }}</time>
+                <p class="battle-strength">Ataque: {{ battle.attacker_power | game_number }} · Defesa: {{ battle.defender_power | game_number }}</p>
+                {% if battle.total_loot %}<p class="resource-amounts">{{ resources(battle.loot) }}</p>{% endif %}
+            </li>{% endfor %}</ol>
+        {% else %}<p class="community-empty">Seus ataques e as tentativas de saque contra a sua vila aparecerão aqui.</p>{% endif %}
+    </section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('javascript', path='community.js') }}" defer></script>{% endblock %}

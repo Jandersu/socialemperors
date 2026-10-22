@@ -1,4 +1,7 @@
 ## Flash Continuation
+
+> Documento histórico dos bundles antigos. O código atual usa Ruffle local no navegador e não exige instalar Flash, extensão ou um navegador antigo. Veja as instruções atuais no [README](README.md#jogar-no-navegador-com-cadastro-e-aprovação).
+
 To play Social Empires you'll need either a *flash-capable browser*, or the *Adobe Flash Player* and a *browser with Flash support*:
 
 :mag: **Flash-capable Browsers**

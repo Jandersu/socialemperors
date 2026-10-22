@@ -1,83 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<!-- Meta -->
-		<meta charset="utf-8"/>
-		<!-- Title and Icon -->
-		<title id="pageTitle">Social Empires</title>
-		<link rel="shortcut icon" href="img/icon.gif"/>
-		<link rel="icon" type="image/png" href="img/icon.gif"/>
-		<!-- CSS -->
-		<link rel="stylesheet" href="css/facebook.css"/>
-	</head>
-	<body class="ego_wide canvas center_fixed_width_app fbx UIPage_LoggedOut liquid hideBanner Locale_en_US" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); overflow: auto;">
-		<center><img src="img/logo.png" style="width: 200px;"/></center>
-		<div class="mvl ptm uiInterstitial canvas_error_page uiInterstitialLarge uiBoxWhite">
-			<!-- HEAD TITLE -->
-			<div class="uiHeader uiHeaderBottomBorder mhl mts uiHeaderPage interstitialHeader">
-				<div class="clearfix uiHeaderTop">
-					<div>
-						<img src="img/sword.png" height="18px" style="margin-left: 5px;">
-						<h2 class="uiHeaderTitle" aria-hidden="true" style="margin-left: 2px; display: inline-block;">
-							<a href="/" style="text-decoration: none;">Social Empires </a>
-						</h2>
-						<p style="display: inline-block; margin: 0 0 4px 6px;">By the Social Emperors team ~ {{ version | default("?")}}</p>
-					</div>
-				</div>
-			</div>
-			<!-- LOGIN CONTENT -->
-			<div class="phl ptm uiInterstitialContent" style="overflow: auto; display: inblock;">
-				<br>
-				<div style="margin-left:20px; font-size:13px; float: left;">
-					{% if saves_info %}
-					<form method="post">
-						<!-- VILLAGE SELECTION -->
-						<b>Select a village</b>
-						<br><br>
-						<div style="float: left; margin-right: 4px;">
-							<img src="img/villager.png" style="height: 27px; margin-top: 0px;">
-						</div>
-						<div style="float: left">
-							<select id="USERID" name="USERID" style="height: 27px; min-width: 330px;" required>
-								{% for save in saves_info %}
-								<option value="{{save.userid}}" title="{{save.userid}}">{{save.name}} ~ level {{save.level}} ({{save.xp}} xp)</option>
-								{% endfor %}
-							</select>
-						</div>
-						<br><br>
-						<br>
-						<!-- RELEASE SELECTION -->
-						<b>Game version</b>
-						<br><br>
-						<div style="overflow: auto; display: inblock;">
-							<div style="float: left">
-								<div style="float: left; margin-right: 4px;">
-									<img src="img/knight.png" style="height: 27px; margin-top: 0px;">
-								</div>
-								<div style="float: left">
-									<select id="GAMEVERSION" name="GAMEVERSION" style="height: 24px;" required>
-										<option value="SocialEmpires0926bsec.swf">0.9.26b (Working)</option>
-										<option value="SocialEmpires1.1.5sec.swf">1.1.5 (Experimental)</option>
-										<option value="SocialEmpires1.4.07sec.swf">1.4.07 (Broken)</option>
-									</select>
-								</div>
-								<br><br> <i>Tip: 0.9.26b Contains legacy Troll Missions!</i>
-								<br><br>
-							</div>
-							<div style="float: right;">
-								<button type="submit" style="font-size:14px; height: 25px">Log in</button>
-							</div>
-						</div>
-					</form>
-					<br>
-					<!-- NEW VILLAGE -->
-					<p style="font-size:13px; display: inline;">Or </p>
-					{% endif %}
-					<p style="font-size:13px; display: inline;">
-						<b><a href="/new.html">Create a new empire</a></b>
-					</p>
-				</div>
-			</div>
-		</div>
-	</body>
-</html>
+{% extends 'base.html' %}
+{% block title %}Entrar · Social Empires{% endblock %}
+{% block content %}
+<section class="auth-panel" aria-labelledby="login-title">
+    <div class="auth-heading">
+        <img class="heading-character" src="{{ url_for('images', path='villager.png') }}" alt="" width="56" height="56">
+        <div><h1 id="login-title">Entre na sua vila</h1><p>Seu império está esperando por você.</p></div>
+    </div>
+    {% if error %}<div id="form-error" class="notice notice-error" role="alert">{{ error }}</div>{% endif %}
+    <form action="{{ url_for('login') }}" method="post" class="account-form" {% if error %}aria-describedby="form-error"{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-field">
+            <label for="email">E-mail</label>
+            <input id="email" name="email" type="email" autocomplete="username" inputmode="email" maxlength="254" value="{{ (values | default({})).get('email', '') }}" required autofocus>
+        </div>
+        <div class="form-field">
+            <label for="password">Senha</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" maxlength="128" required>
+        </div>
+        <button class="button button-primary button-wide" type="submit">Entrar na minha vila</button>
+    </form>
+    <div class="auth-switch">Ainda não tem uma conta? <a href="{{ url_for('register') }}">Criar conta</a></div>
+</section>
+{% endblock %}

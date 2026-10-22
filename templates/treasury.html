@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Tesouro · Social Empires{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('css', path='management.css') }}">{% endblock %}
+{% block main_class %}management-main treasury-main{% endblock %}
+{% block content %}
+<div class="management-heading">
+    <div><h1>Tesouro</h1><p>Ganhe dinheiro do jogo para acelerar seu império e fazer compras especiais.</p></div>
+    <a class="button button-secondary" href="{{ url_for('play') }}">Voltar para a vila</a>
+</div>
+{% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+<dl class="treasury-balance"><dt>Seu saldo de dinheiro</dt><dd>{{ overview.balance | game_number }}</dd></dl>
+{% if overview.initial_available %}
+<section class="treasury-reward" aria-labelledby="initial-title">
+    <h2 id="initial-title">Bônus inicial</h2>
+    <p>Receba {{ overview.initial_bonus | game_number }} de dinheiro para começar. Este bônus pode ser resgatado uma vez por conta.</p>
+    <form action="{{ url_for('claim_treasury') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-primary" type="submit" name="action" value="initial">Resgatar bônus inicial</button>
+    </form>
+</section>
+{% endif %}
+<section class="treasury-reward{% if overview.initial_available %} management-section{% endif %}" aria-labelledby="daily-title">
+    <h2 id="daily-title">Recompensa diária</h2>
+    <p>Receba {{ overview.daily_reward | game_number }} de dinheiro a cada 24 horas. O próximo período começa quando você resgata a recompensa.</p>
+    {% if overview.can_claim %}
+    <form action="{{ url_for('claim_treasury') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-primary" type="submit" name="action" value="daily">Resgatar recompensa diária</button>
+    </form>
+    {% else %}
+    <p class="notice">Próximo resgate: <time data-timestamp="{{ overview.next_claim_at }}">{{ overview.next_claim_at | game_datetime }}</time>. Volte a esta página quando estiver disponível.</p>
+    <p><button class="button button-primary" type="button" disabled>Recompensa já resgatada</button></p>
+    {% endif %}
+</section>
+<section class="management-section" aria-labelledby="money-title">
+    <h2 id="money-title">Como usar o dinheiro</h2>
+    <ul class="treasury-rules">
+        <li>Use o saldo dentro do jogo nas opções de acelerar e nas compras que pedem dinheiro.</li>
+        <li>O dinheiro é gratuito. Não há compra com cartão nem cobrança de jogadores.</li>
+        <li>Dinheiro e ouro são recursos diferentes. Os saques entre vilas não transferem dinheiro.</li>
+    </ul>
+</section>
+<section class="management-section" aria-labelledby="reward-history">
+    <h2 id="reward-history">Seus últimos resgates</h2>
+    {% if overview.history %}
+    <ol class="management-history">
+        {% for reward in overview.history %}
+        <li>
+            <p><strong>{{ 'Bônus inicial' if reward.kind == 'initial' else 'Recompensa diária' }}</strong> · +{{ reward.amount | game_number }} de dinheiro</p>
+            <p class="audit-meta"><time data-timestamp="{{ reward.claimed_at }}">{{ reward.claimed_at | game_datetime }}</time></p>
+        </li>
+        {% endfor %}
+    </ol>
+    {% else %}<p class="management-empty">Seus resgates aparecem aqui. Resgate a recompensa disponível para começar.</p>{% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('javascript', path='community.js') }}" defer></script>{% endblock %}

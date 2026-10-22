@@ -1,0 +1,101 @@
+:root {
+    color-scheme: light;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #253b31;
+    background: #f4f3ed;
+    --primary: #285c3c;
+    --muted: #53665b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+::selection { background: #c8dfb0; color: #1e3927; }
+a { color: var(--primary); text-underline-offset: .22em; }
+button { font: inherit; cursor: pointer; }
+a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 3px solid #b06a20; outline-offset: 4px; }
+[hidden] { display: none !important; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; top: -100px; padding: 14px 20px; background: #fff; z-index: 20; }
+.skip-link:focus { top: 12px; left: 12px; }
+.game-header { max-width: 1060px; padding: 24px 28px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.brand { line-height: 0; }
+.brand img { max-width: 100%; height: auto; }
+nav { display: flex; align-items: center; gap: 24px; font-size: 14px; }
+nav form { margin: 0; }
+.text-button { border: 0; padding: 10px 0; color: var(--primary); background: transparent; text-decoration: underline; text-underline-offset: .22em; }
+.text-button:hover, nav a:hover { color: #153c23; }
+.game-main { max-width: 1020px; padding: 20px 30px 36px; margin: auto; }
+.village-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 22px; }
+h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(26px, 4vw, 36px); font-weight: 600; margin: 0 0 6px; overflow-wrap: anywhere; }
+.village-heading p { margin: 0; color: var(--muted); font-size: 15px; }
+.primary-button, .secondary-button { padding: 11px 17px; min-height: 44px; border-radius: 6px; border: 1px solid var(--primary); }
+.primary-button { color: white; background: var(--primary); margin-top: 12px; }
+.primary-button:hover { background: #1c452b; }
+.secondary-button { color: var(--primary); background: #fff; flex-shrink: 0; font-size: 14px; text-align: center; }
+a.secondary-button { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.secondary-button:hover { background: #e8eee5; }
+.game-shell { --dock-offset: max(2px, env(safe-area-inset-left, 0px)); --dock-space: calc(var(--dock-offset) + 198px); position: relative; display: grid; grid-template-columns: var(--dock-space) minmax(0, 1fr); width: 100%; container-type: inline-size; background: #26371c; box-shadow: 0 10px 38px #29372420; overflow: hidden; border-radius: 8px; }
+.controls-dock { position: absolute; z-index: 2; top: max(8px, env(safe-area-inset-top)); left: var(--dock-offset); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 44px; }
+.controls-open .controls-dock { width: 184px; }
+.controls-toggle { position: relative; display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; padding: 10px; color: var(--primary); background: #edf1e6; border: 0; border-radius: 6px; }
+.controls-toggle:hover, .controls-toggle[aria-expanded="true"] { background: #dce7d2; }
+.controls-toggle:focus-visible { outline-offset: -3px; }
+.controls-toggle.has-update::after { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #b06a20; content: ""; }
+.controls-panel { width: 184px; max-height: calc((100cqw - var(--dock-space)) * 600 / 760 - 72px); overflow-y: auto; padding: 12px; border-radius: 8px; background: #edf1e6; scrollbar-color: #738b70 #edf1e6; scrollbar-width: thin; }
+.audio-controls, .view-controls { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.audio-controls { margin-bottom: 20px; font-size: 14px; }
+.volume-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.audio-controls label { color: var(--muted); }
+.audio-controls input { width: 100%; min-width: 0; height: 44px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.audio-controls output { width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+.audio-controls input:disabled { cursor: default; }
+.controls-panel .secondary-button { width: 100%; padding-inline: 8px; }
+.village-update { grid-column: 1 / -1; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #c4d1bd; font-size: 14px; line-height: 1.5; }
+.village-update p { margin: 0 0 8px; }
+.game-stage { position: relative; grid-column: 2; aspect-ratio: 760 / 600; min-width: 0; background: #26371c; overflow: hidden; container-type: size; }
+.game-player, .game-player ruffle-player { display: block; width: 100%; height: 100%; }
+.game-player { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(100%, calc(100cqh * 760 / 600)); height: min(100%, calc(100cqw * 600 / 760)); }
+.game-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: safe center; overflow: auto; padding: 28px; background: #edf1e6; text-align: center; }
+.game-loading img { width: auto; height: 64px; object-fit: contain; margin-bottom: 16px; image-rendering: auto; }
+.game-loading h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; font-size: 25px; margin: 0 0 12px; }
+.game-loading p { font-size: 16px; max-width: 40ch; line-height: 1.6; margin: 0; }
+.game-footer { display: flex; justify-content: space-between; gap: 24px; color: var(--muted); font-size: 13px; line-height: 1.6; margin-top: 14px; }
+.game-footer p { margin: 0; }
+.game-footer span { flex-shrink: 0; }
+.mobile-hint { display: none; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.noscript-message { position: absolute; inset: 0; margin: 0; padding: 50px 30px; background: #edf1e6; }
+body.tab-expanded { overflow: hidden; }
+body.tab-expanded .game-header, body.tab-expanded .village-heading,
+body.tab-expanded .game-footer, body.tab-expanded .mobile-hint { display: none; }
+.game-shell.is-expanded, .game-shell:fullscreen { position: fixed; inset: 0; z-index: 10; display: block; width: 100%; height: 100%; height: 100dvh; container-type: size; border-radius: 0; }
+/* Use the existing letterbox margin first; reserve more room only when needed. */
+.game-shell.is-expanded .game-stage, .game-shell:fullscreen .game-stage { position: absolute; inset: 0; left: min(var(--dock-space), max(0px, calc(2 * var(--dock-space) - 100cqw + 100cqh * 760 / 600))); aspect-ratio: auto; }
+.game-shell.is-expanded .controls-panel, .game-shell:fullscreen .controls-panel { max-height: calc(100cqh - 72px); }
+@media (max-width: 800px) {
+    /* In a small window the controls have their own row, leaving the village full width. */
+    .game-shell:not(.is-expanded):not(:fullscreen) { grid-template-columns: minmax(0, 1fr); }
+    .game-shell:not(.is-expanded):not(:fullscreen) .game-stage { grid-column: 1; grid-row: 1; }
+    .game-shell:not(.is-expanded):not(:fullscreen) .controls-dock { position: relative; top: auto; left: auto; grid-column: 1; grid-row: 2; width: calc(100% - 16px); margin: 8px; }
+    .game-shell:not(.is-expanded):not(:fullscreen) .controls-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; width: 100%; max-height: none; }
+    .game-shell:not(.is-expanded):not(:fullscreen) .audio-controls { margin-bottom: 0; }
+}
+@media (max-aspect-ratio: 4 / 5) {
+    /* Portrait letterboxing holds the menu below the image; revealing it never resizes the game. */
+    .game-shell.is-expanded .game-stage, .game-shell:fullscreen .game-stage { left: 0; bottom: calc(282px + max(8px, env(safe-area-inset-bottom))); }
+    .game-shell.is-expanded .controls-dock, .game-shell:fullscreen .controls-dock { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); width: calc(100% - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right))); flex-direction: column-reverse; }
+    .game-shell.is-expanded .controls-panel, .game-shell:fullscreen .controls-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; width: 100%; max-height: 224px; }
+    .game-shell.is-expanded .audio-controls, .game-shell:fullscreen .audio-controls { margin-bottom: 0; }
+}
+@media (max-width: 600px) {
+    .game-header { padding: 20px; gap: 16px; align-items: flex-start; }
+    .brand img { width: 135px; }
+    nav { gap: 4px; align-items: flex-end; flex-direction: column; font-size: 14px; }
+    .game-main { padding: 12px 16px 28px; }
+    .village-heading { margin-bottom: 18px; gap: 12px; }
+    .secondary-button { padding-inline: 12px; }
+    .game-loading { padding: 16px; }
+    .game-loading img { height: 48px; margin-bottom: 12px; }
+    .game-loading h2 { font-size: 22px; }
+    .game-loading p { font-size: 14px; }
+    .game-footer { flex-direction: column; gap: 4px; }
+    .mobile-hint { display: block; }
+}

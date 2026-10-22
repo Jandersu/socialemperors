@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "templates/play.html"
+        ],
+        "createdAt": "2026-10-22T17:09:44.180Z",
+        "reason": "Agent review: detector cannot resolve the Jinja stylesheet URL; game.css defines h1 26-36px, h2 22-25px and body 14-16px, confirmed in desktop and mobile captures."
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "templates/css/portal.css"
+        ],
+        "createdAt": "2026-10-22T17:09:44.270Z",
+        "reason": "Agent review: line 83 is the intentional 3px bottom indicator on navigation tabs; .filter-nav a has no border-radius and is not a rounded card."
+      }
+    ]
+  }
+}

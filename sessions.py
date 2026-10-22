@@ -3,6 +3,7 @@ import os
 import copy
 import uuid
 import random
+import tempfile
 from flask import session
 # from flask_session import SqlAlchemySessionInterface, current_app
 
@@ -33,7 +34,8 @@ __saves = {}  # ALL saved villages
     "USERID_2": {...}
 }'''
 
-__initial_village = json.load(open(os.path.join(VILLAGES_DIR, "initial.json")))
+with open(os.path.join(VILLAGES_DIR, "initial.json"), encoding='utf-8') as initial_stream:
+    __initial_village = json.load(initial_stream)
 
 # Load saved villages
 
@@ -47,7 +49,7 @@ def load_saved_villages():
     if not os.path.exists(SAVES_DIR):
         try:
             print(f"Creating '{SAVES_DIR}' folder...")
-            os.mkdir(SAVES_DIR)
+            os.makedirs(SAVES_DIR, exist_ok=True)
         except:
             print(f"Could not create '{SAVES_DIR}' folder.")
             exit(1)
@@ -59,10 +61,14 @@ def load_saved_villages():
         if file == "initial.json" or not file.endswith(".json"):
             continue
         print(f" * Loading static neighbour {file}... ", end='')
-        village = json.load(open(os.path.join(VILLAGES_DIR, file)))
+        with open(os.path.join(VILLAGES_DIR, file), encoding='utf-8') as stream:
+            village = json.load(stream)
         if not is_valid_village(village):
             print("Invalid neighbour")
             continue
+        # Old saves reference remote social-network avatars. Keep play local.
+        if not str(village['playerInfo'].get('pic', '')).startswith('/img/'):
+            village['playerInfo']['pic'] = '/img/profile/1025.png'
         USERID = village["playerInfo"]["pid"]
         if str(USERID) in __villages:
             print(f"Ignored: duplicated PID '{USERID}'.")
@@ -75,13 +81,16 @@ def load_saved_villages():
             continue
         print(f" * Loading save at {file}... ", end='')
         try:
-            save = json.load(open(os.path.join(SAVES_DIR, file)))
+            with open(os.path.join(SAVES_DIR, file), encoding='utf-8') as stream:
+                save = json.load(stream)
         except json.decoder.JSONDecodeError as e:
             print("Corrupted JSON.")
             continue
         if not is_valid_village(save):
             print("Invalid Save.")
             continue
+        if not str(save['playerInfo'].get('pic', '')).startswith('/img/'):
+            save['playerInfo']['pic'] = '/img/profile/1025.png'
         USERID = save["playerInfo"]["pid"]
         try:
             map_name = save["playerInfo"]["map_names"][ save["playerInfo"]["default_map"] ]
@@ -105,6 +114,7 @@ def new_village() -> str:
     # Custom values
     village["version"] = version_code
     village["playerInfo"]["pid"] = USERID
+    village["playerInfo"]["pic"] = '/img/profile/1025.png'
     village["maps"][0]["timestamp"] = timestamp_now()
     village["privateState"]["dartsRandomSeed"] = abs(int((2**16 - 1) * random.random()))
     # Memory saves
@@ -126,7 +136,7 @@ def all_userid() -> list:
 
 def save_info(USERID: str) -> dict:
     save = __saves[USERID]
-    default_map = save["playerInfo"]["default_map"]
+    default_map = int(save["playerInfo"]["default_map"])
     empire_name = str(save["playerInfo"]["map_names"][default_map])
     xp = save["maps"][default_map]["xp"]
     level = save["maps"][default_map]["level"]
@@ -239,10 +249,19 @@ def backup_session(USERID: str):
     return
 
 def save_session(USERID: str):
-    # TODO 
     file = f"{USERID}.save.json"
     print(f" * Saving village at {file}... ", end='')
     village = session(USERID)
-    with open(os.path.join(SAVES_DIR, file), 'w') as f:
-        json.dump(village, f, indent=4)
+    # Replace only after a complete write so interruption cannot truncate a save.
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=SAVES_DIR, suffix='.tmp', delete=False) as stream:
+            temporary_path = stream.name
+            json.dump(village, stream, indent=4)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, os.path.join(SAVES_DIR, file))
+    finally:
+        if temporary_path and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
     print("Done.")

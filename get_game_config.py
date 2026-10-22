@@ -1,7 +1,9 @@
 import json
 import os
 import jsonpatch
+from functools import lru_cache
 from bundle import MODS_DIR, CONFIG_DIR, CONFIG_PATCH_DIR
+from localization import localize_game_config, normalize_locale
 
 __game_config = json.load(open(os.path.join(CONFIG_DIR, "game_config_20120826.json"), 'r', encoding='utf-8'))
 
@@ -69,11 +71,17 @@ def patch_game_config():
 print (" [+] Applying config patches and mods...")
 patch_game_config()
 
-def get_game_config() -> dict:
+@lru_cache(maxsize=1)
+def _portuguese_game_config() -> dict:
+    return localize_game_config(__game_config, 'pt-BR')
+
+def get_game_config(language='en') -> dict:
+    if normalize_locale(language) == 'pt-BR':
+        return _portuguese_game_config()
     return __game_config
 
-def game_config() -> dict:
-    return get_game_config()
+def game_config(language='en') -> dict:
+    return get_game_config(language)
 
 ##########
 # PLAYER #

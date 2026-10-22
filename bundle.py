@@ -18,4 +18,7 @@ CONFIG_PATCH_DIR = os.path.join(CONFIG_DIR, "patch")
 BASE_DIR = "."
 
 MODS_DIR = os.path.join(BASE_DIR, "mods")
-SAVES_DIR = os.path.join(BASE_DIR, "saves")
+SAVES_DIR = os.environ.get('SOCIAL_EMPIRES_SAVES_DIR') or (
+    os.path.join(os.environ['SOCIAL_EMPIRES_DATA_DIR'], 'saves')
+    if os.environ.get('SOCIAL_EMPIRES_DATA_DIR') else os.path.join(BASE_DIR, 'saves')
+)

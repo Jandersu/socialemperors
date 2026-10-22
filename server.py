@@ -1,7 +1,19 @@
 print (" [+] Loading basics...")
 import os
 import json
-import urllib
+import secrets
+import threading
+import hashlib
+import hmac
+import sqlite3
+import copy
+from functools import lru_cache
+from io import BytesIO
+from datetime import timedelta, datetime, timezone
+from pathlib import Path
+from urllib.parse import urlsplit
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+import click
 if os.name == 'nt':
     os.system("color")
     os.system("title Social Empires Server")
@@ -14,23 +26,237 @@ from get_game_config import get_game_config, patch_game_config
 
 print (" [+] Loading players...")
 from get_player_info import get_player_info, get_neighbor_info
-from sessions import load_saved_villages, all_saves_userid, all_saves_info, save_info, new_village, fb_friends_str
+from sessions import load_saved_villages, all_saves_userid, save_info, new_village, fb_friends_str, session as village_session
 load_saved_villages()
 
 print (" [+] Loading server...")
-from flask import Flask, render_template, send_from_directory, request, redirect, session
-from flask.debughelpers import attach_enctype_error_multidict
+from flask import Flask, render_template, send_from_directory, send_file, request, redirect, session, g, abort, flash, url_for
+from auth import AccountStore, AccountError, csrf_token, validate_csrf
 from command import command
 from engine import timestamp_now
 from version import version_name
 from constants import Constant
 from quests import get_quest_map
+from swf_localization import localize_swf
+from village_names import rename_village, normalize_legacy_village_name, VillageNameError, MAX_VILLAGE_NAME_LENGTH
+from pvp import RaidService, RaidError
+from admin_villages import AdminVillageService, AdminVillageError, AdminVillageConflict, EDITABLE_FIELDS, RESOURCE_LIMIT, CASH_LIMIT
+from economy import EconomyService, EconomyError
+from swf_private_economy import patch_private_economy
 from bundle import ASSETS_DIR, STUB_DIR, TEMPLATES_DIR, BASE_DIR
 
-host = '127.0.0.1'
-port = 5050
+host = os.environ.get('HOST', '127.0.0.1')
+port = int(os.environ.get('PORT', '5050'))
 
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
+data_dir = Path(os.environ.get('SOCIAL_EMPIRES_DATA_DIR', 'instance')).resolve()
+data_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _secret_key():
+    configured = os.environ.get('SECRET_KEY')
+    if configured:
+        if len(configured) < 32:
+            raise RuntimeError('SECRET_KEY deve ter pelo menos 32 caracteres.')
+        return configured
+    key_file = data_dir / 'secret_key'
+    try:
+        descriptor = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            stream.write(secrets.token_hex(32))
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileExistsError:
+        pass
+    saved_key = key_file.read_text(encoding='utf-8').strip()
+    if len(saved_key) < 32:
+        raise RuntimeError('A chave em instance/secret_key está inválida. Restaure o arquivo de backup ou configure SECRET_KEY com pelo menos 32 caracteres.')
+    return saved_key
+
+
+app.config.update(
+    SECRET_KEY=_secret_key(),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE', '0') == '1',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+    MAX_CONTENT_LENGTH=2 * 1024 * 1024,
+)
+app.extensions['accounts'] = AccountStore(data_dir / 'accounts.sqlite3')
+village_lock = threading.RLock()
+app.extensions['raids'] = RaidService(data_dir / 'raids.sqlite3')
+app.extensions['village_admin'] = AdminVillageService(data_dir / 'administration.sqlite3')
+
+
+def cash_setting(name, default):
+    value = os.environ.get(name, str(default))
+    if not value.isascii() or not value.isdigit() or not 1 <= int(value) <= CASH_LIMIT:
+        raise RuntimeError(f'{name} deve ser um inteiro entre 1 e {CASH_LIMIT}.')
+    return int(value)
+
+
+app.extensions['economy'] = EconomyService(
+    data_dir / 'treasury.sqlite3',
+    initial_bonus=cash_setting('SOCIAL_EMPIRES_INITIAL_CASH', 500),
+    daily_reward=cash_setting('SOCIAL_EMPIRES_DAILY_CASH', 100),
+)
+with village_lock:
+    app.extensions['raids'].recover_pending()
+    app.extensions['village_admin'].recover_pending()
+    app.extensions['economy'].recover_pending()
+STATIC_GAME_PREFIX = '/default01.static.socialpointgames.com/static/socialempires/'
+DYNAMIC_GAME_PREFIX = '/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/'
+GAME_VERSION = 'SocialEmpires0926bsec.swf'
+
+
+def accounts():
+    return app.extensions['accounts']
+
+
+def raids():
+    return app.extensions['raids']
+
+
+def village_admin():
+    return app.extensions['village_admin']
+
+
+def economy():
+    return app.extensions['economy']
+
+
+def village_revision(userid):
+    return '.'.join(value for value in (
+        raids().revision(userid), village_admin().change_revision(userid), economy().revision(userid),
+    ) if value)
+
+
+def game_session_key(userid):
+    """Invalidate an open legacy client after administrative edits.
+
+    Form CSRF remains stable. Only a newly rendered game receives the key for
+    the current administrative revision, preventing stale absolute XP writes.
+    """
+    token = session.get('_csrf_token', '')
+    if not token:
+        return ''
+    revision = village_admin().change_revision(userid)
+    if not revision:
+        return token
+    secret = app.secret_key.encode('utf-8') if isinstance(app.secret_key, str) else app.secret_key
+    return hmac.new(secret, f'game:{userid}:{token}:{revision}'.encode('utf-8'), hashlib.sha256).hexdigest()
+
+
+def validate_game_key(userid):
+    supplied = request.values.get('user_key', '')
+    expected = game_session_key(userid)
+    if not expected or not secrets.compare_digest(supplied.encode('utf-8'), expected.encode('utf-8')):
+        abort(403, description='Sua vila ou sessão foi atualizada. Recarregue o jogo para continuar.')
+
+
+def recover_raids():
+    """Recover all journals under village_lock before any later save mutation.
+
+    A failed write blocks every subsequent mutation, so only one service can
+    have a pending snapshot and recovery order cannot reverse later changes.
+    """
+    try:
+        raids().recover_pending()
+        village_admin().recover_pending()
+        economy().recover_pending()
+    except (OSError, sqlite3.Error, RuntimeError, ValueError, KeyError):
+        app.logger.exception('Não foi possível recuperar as alterações da vila.')
+        abort(503, description='O servidor está recuperando alterações da vila. Tente novamente em instantes.')
+
+
+def eligible_village_ids():
+    return {account['village_id'] for account in accounts().list_accounts()
+            if account['status'] == 'approved' and account['village_id']}
+
+
+def raid_tokens():
+    return URLSafeTimedSerializer(app.secret_key, salt='socialemperors-raids')
+
+
+@app.template_filter('game_number')
+def game_number(value):
+    return f'{int(value):,}'.replace(',', '.')
+
+
+@app.template_filter('game_datetime')
+def game_datetime(value):
+    return datetime.fromtimestamp(value, timezone.utc).strftime('%d/%m/%Y %H:%M UTC')
+
+
+def ensure_village(account):
+    with village_lock:
+        recover_raids()
+        account = accounts().get(account['id'])
+        if not account['village_id']:
+            account = accounts().bind_village(account['id'], new_village())
+        if account['village_id'] not in all_saves_userid():
+            abort(503, description='O arquivo da sua vila não foi encontrado. Contate o administrador para restaurar o save.')
+        normalize_legacy_village_name(account['village_id'])
+        return account
+
+
+@app.context_processor
+def access_context():
+    return dict(current_account=getattr(g, 'account', None), csrf_token=csrf_token, version=version_name)
+
+
+@app.before_request
+def protect_access():
+    g.account = accounts().get(session.get('account_id'))
+    protected = request.path in ('/play.html', '/ruffle.html', '/new.html', '/null', '/village', '/village/events', '/rivals', '/treasury', '/treasury/claim') or request.path.startswith((STATIC_GAME_PREFIX, DYNAMIC_GAME_PREFIX, '/rivals/'))
+    if not protected:
+        return
+    is_api = request.path.startswith((STATIC_GAME_PREFIX, DYNAMIC_GAME_PREFIX))
+    if not g.account:
+        if is_api:
+            return {'error': 'Faça login para acessar o jogo.'}, 401
+        return redirect(url_for('login'))
+    if g.account['status'] != 'approved':
+        if is_api:
+            return {'error': 'Sua conta não está aprovada.'}, 403
+        session.clear()
+        flash('Sua conta precisa da aprovação de um administrador para jogar.', 'info')
+        return redirect(url_for('login'))
+    village_id = g.account['village_id']
+    if not village_id or session.get('USERID') != village_id:
+        abort(403, description='A vila desta sessão não pertence à sua conta. Entre novamente.')
+    # FlashVars identify the player, but only the authenticated session authorizes it.
+    if request.path.startswith(DYNAMIC_GAME_PREFIX):
+        for field in ('USERID', 'user_id'):
+            if field in request.values and request.values[field] != village_id:
+                abort(403, description='Você só pode acessar sua própria vila.')
+        if request.method == 'POST':
+            origin = request.headers.get('Origin')
+            if request.headers.get('Sec-Fetch-Site') == 'cross-site' or (origin and urlsplit(origin).netloc != request.host):
+                abort(403, description='Origem da solicitação inválida.')
+        if request.path.rsplit('/', 1)[-1] in ('get_game_config.php', 'get_player_info.php', 'command.php', 'sync_error_track.php', 'get_continent_ranking.php'):
+            validate_game_key(village_id)
+
+
+@app.after_request
+def response_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'same-origin'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    if request.endpoint not in ('images', 'css', 'javascript', 'ruffle_assets', 'static_assets_loader'):
+        response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@app.errorhandler(400)
+@app.errorhandler(403)
+@app.errorhandler(404)
+@app.errorhandler(413)
+@app.errorhandler(503)
+def access_error(error):
+    if request.path.startswith(DYNAMIC_GAME_PREFIX):
+        return {'error': error.description}, error.code
+    return render_template('error.html', status_code=error.code, message=error.description), error.code
 
 print (" [+] Configuring server routes...")
 
@@ -40,67 +266,305 @@ print (" [+] Configuring server routes...")
 
 ## PAGES AND RESOURCES
 
+@app.route("/login", methods=['GET', 'POST'])
 @app.route("/", methods=['GET', 'POST'])
 def login():
-    # Log out previous session
-    session.pop('USERID', default=None)
-    session.pop('GAMEVERSION', default=None)
-    # Reload saves. Allows saves modification without server reset
-    load_saved_villages()
-    # If logging in, set session USERID, and go to play
+    if g.account and g.account['status'] == 'approved' and request.method == 'GET':
+        return redirect(url_for('play'))
+    error = None
+    values = {'email': request.form.get('email', '').strip()}
     if request.method == 'POST':
-        session['USERID'] = request.form['USERID']
-        session['GAMEVERSION'] = request.form['GAMEVERSION']
-        print("[LOGIN] USERID:", request.form['USERID'])
-        print("[LOGIN] GAMEVERSION:", request.form['GAMEVERSION'])
-        return redirect("/play.html")
-    # Login page
-    if request.method == 'GET':
-        saves_info = all_saves_info()
-        return render_template("login.html", saves_info=saves_info, version=version_name)
+        validate_csrf()
+        email = values['email']
+        address = request.remote_addr or 'unknown'
+        try:
+            accounts().check_login_allowed(email, address)
+            account = accounts().authenticate(email, request.form.get('password', ''))
+            if not account:
+                accounts().record_login_failure(email, address)
+                error = 'E-mail ou senha incorretos.'
+            elif account['status'] == 'pending':
+                error = 'Seu cadastro está aguardando aprovação do administrador. Tente entrar novamente após a liberação.'
+            elif account['status'] != 'approved':
+                error = 'Seu acesso não foi liberado. Entre em contato com o administrador.'
+            else:
+                account = ensure_village(account)
+                accounts().clear_login_failures(email, address)
+                session.clear()
+                session.permanent = True
+                session['account_id'] = account['id']
+                session['USERID'] = account['village_id']
+                session['GAMEVERSION'] = GAME_VERSION
+                csrf_token()
+                return redirect(url_for('play'))
+        except AccountError as exc:
+            error = str(exc)
+    return render_template('login.html', error=error, values=values)
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    error = None
+    values = {key: request.form.get(key, '').strip() for key in ('name', 'email')}
+    if request.method == 'POST':
+        validate_csrf()
+        try:
+            password = request.form.get('password', '')
+            if password != request.form.get('password_confirm', ''):
+                raise AccountError('As senhas não conferem.')
+            accounts().create_account(values['name'], values['email'], password)
+            flash('Cadastro recebido! Aguarde a aprovação do administrador para entrar na sua vila.', 'success')
+            return redirect(url_for('login'))
+        except AccountError as exc:
+            error = str(exc)
+    return render_template('register.html', error=error, values=values)
+
+
+@app.post('/logout')
+def logout():
+    validate_csrf()
+    session.clear()
+    return redirect(url_for('login'))
+
+
+def require_admin():
+    if not g.account or not g.account['is_admin'] or g.account['status'] != 'approved':
+        abort(403, description='Esta página é exclusiva dos administradores.')
+
+
+@app.get('/admin')
+def admin_accounts():
+    require_admin()
+    selected_filter = request.args.get('status', 'pending')
+    if selected_filter not in ('all', 'pending', 'approved', 'rejected'):
+        abort(400, description='Filtro de contas inválido.')
+    all_accounts = accounts().list_accounts()
+    return render_template('admin.html', accounts=[account for account in all_accounts if selected_filter == 'all' or account['status'] == selected_filter], pending_count=sum(account['status'] == 'pending' for account in all_accounts), selected_filter=selected_filter)
+
+
+@app.post('/admin/accounts/<int:account_id>')
+def update_account(account_id):
+    require_admin()
+    validate_csrf()
+    status = {'approve': 'approved', 'reject': 'rejected', 'suspend': 'pending'}.get(request.form.get('action'))
+    if not status:
+        abort(400, description='Ação inválida.')
+    account = accounts().get(account_id)
+    if not account:
+        abort(404, description='Conta não encontrada.')
+    try:
+        if status == 'approved':
+            ensure_village(account)
+        accounts().set_status(account_id, status)
+        flash('Acesso da conta atualizado.', 'success')
+    except AccountError as exc:
+        flash(str(exc), 'error')
+    return redirect(url_for('admin_accounts', status=request.form.get('status', 'pending') if request.form.get('status') in ('pending', 'approved', 'rejected', 'all') else 'pending'))
+
+
+@app.get('/admin/villages')
+def admin_villages():
+    require_admin()
+    entries = []
+    with village_lock:
+        recover_raids()
+        saved_ids = set(all_saves_userid())
+        for account in accounts().list_accounts():
+            userid = account['village_id']
+            if not userid:
+                continue
+            if userid not in saved_ids:
+                entries.append({'account': account, 'unavailable': True})
+                continue
+            village = village_admin().get(userid)
+            entries.append({'account': account, 'village': village,
+                            'resources': village['resources'], 'cash': village['cash'], 'unavailable': False})
+    return render_template('admin_villages.html', villages=entries)
+
+
+def administrative_history(userid):
+    administrators = {account['id']: account['name'] for account in accounts().list_accounts()}
+    labels = {'name': 'Nome', 'coins': 'Ouro', 'wood': 'Madeira', 'food': 'Comida',
+              'stone': 'Pedra', 'cash': 'Dinheiro', 'level': 'Nível', 'xp': 'Experiência',
+              'tutorial_complete': 'Tutorial'}
+    history = []
+    for entry in village_admin().history(userid):
+        changes = []
+        for field in entry['changed_fields']:
+            values = []
+            for snapshot in (entry['before'], entry['after']):
+                value = snapshot['resources'][field] if field in ('coins', 'wood', 'food', 'stone') else snapshot[field]
+                if field == 'tutorial_complete':
+                    value = 'Concluído' if value else 'Em andamento'
+                elif field != 'name':
+                    value = game_number(value)
+                values.append(value)
+            changes.append({'label': labels[field], 'before': values[0], 'after': values[1]})
+        history.append({**entry, 'admin_name': administrators.get(entry['admin_account_id'], 'Administrador'),
+                        'created_label': game_datetime(entry['created_at']), 'changes': changes})
+    return history
+
+
+@app.route('/admin/villages/<int:account_id>', methods=['GET', 'POST'])
+def admin_village(account_id):
+    require_admin()
+    if request.method == 'POST':
+        validate_csrf()
+    account = accounts().get(account_id)
+    if not account or not account['village_id']:
+        abort(404, description='Esta conta ainda não possui uma vila vinculada.')
+    error, conflict, response_status = None, False, 200
+    with village_lock:
+        recover_raids()
+        if account['village_id'] not in all_saves_userid():
+            abort(503, description='O save desta vila não foi encontrado. Restaure o arquivo de backup antes de editar.')
+        village = village_admin().get(account['village_id'])
+        values = {'name': village['name'], **village['resources'], 'cash': village['cash'],
+                  'level': village['level'], 'tutorial_complete': int(village['tutorial_complete']), 'reason': ''}
+        expected_revision = village['revision']
+        if request.method == 'POST':
+            values = {field: request.form.get(field, '') for field in EDITABLE_FIELDS}
+            values['reason'] = request.form.get('reason', '')
+            expected_revision = request.form.get('expected_revision', '')
+            try:
+                result = village_admin().update(
+                    account['village_id'], {key: value for key, value in values.items() if key != 'reason'},
+                    g.account['id'], expected_revision, values['reason'],
+                )
+            except AdminVillageConflict as exc:
+                error, conflict, response_status = str(exc), True, 409
+            except AdminVillageError as exc:
+                error, response_status = str(exc), 400
+            except (OSError, sqlite3.Error):
+                app.logger.exception('A alteração administrativa aguarda recuperação.')
+                abort(503, description='Não foi possível concluir a alteração agora. Atualize a página para recuperar a gravação antes de tentar novamente.')
+            else:
+                flash('Vila atualizada. O jogador verá um aviso para recarregar o jogo.' if result['changed_fields'] else 'A vila já estava com esses valores.', 'success')
+                return redirect(url_for('admin_village', account_id=account_id), code=303)
+        history = administrative_history(account['village_id'])
+    return render_template('admin_village.html', account=account, village=village, values=values,
+                           error=error, conflict=conflict, expected_revision=expected_revision, history=history,
+                           limits={'resource_max': RESOURCE_LIMIT, 'cash_max': CASH_LIMIT,
+                                   'name_max_length': MAX_VILLAGE_NAME_LENGTH, 'max_level': village['max_level']}), response_status
+
+
+@app.get('/treasury')
+def treasury():
+    with village_lock:
+        recover_raids()
+        try:
+            overview = economy().overview(session['USERID'])
+        except EconomyError as exc:
+            abort(400, description=str(exc))
+    return render_template('treasury.html', overview=overview)
+
+
+@app.post('/treasury/claim')
+def claim_treasury():
+    validate_csrf()
+    with village_lock:
+        recover_raids()
+        try:
+            reward = economy().claim(session['USERID'], request.form.get('action', ''))
+        except EconomyError as exc:
+            flash(str(exc), 'error')
+        except (OSError, sqlite3.Error):
+            app.logger.exception('O resgate gratuito aguarda recuperação.')
+            abort(503, description='Não foi possível concluir o resgate agora. Atualize a página para recuperar a gravação antes de tentar novamente.')
+        else:
+            flash(f"Você recebeu {game_number(reward['amount'])} de dinheiro gratuito. Reabra a vila para usar o saldo.", 'success')
+    return redirect(url_for('treasury'), code=303)
+
 
 @app.route("/play.html")
 def play():
-    print(session)
-
-    if 'USERID' not in session:
-        return redirect("/")
-    if 'GAMEVERSION' not in session:
-        return redirect("/")
-
-    if session['USERID'] not in all_saves_userid():
-        return redirect("/")
-    
+    ensure_village(g.account)
     USERID = session['USERID']
-    GAMEVERSION = session['GAMEVERSION']
-    print("[PLAY] USERID:", USERID)
-    print("[PLAY] GAMEVERSION:", GAMEVERSION)
-    return render_template("play.html", save_info=save_info(USERID), serverTime=timestamp_now(), friendsInfo=fb_friends_str(USERID), version=version_name, GAMEVERSION=GAMEVERSION, SERVERIP=host)
+    with village_lock:
+        recover_raids()
+        server_time = timestamp_now()
+        last_login = village_session(USERID)['playerInfo'].get('last_logged_in', -1)
+        if not isinstance(last_login, int) or last_login < 0:
+            last_login = server_time
+        return render_template("play.html", save_info=save_info(USERID), serverTime=server_time, last_logged_in=last_login, friendsInfo=fb_friends_str(USERID), version=version_name, GAMEVERSION=GAME_VERSION, raid_revision=village_revision(USERID), game_user_key=game_session_key(USERID))
+
+
+@app.route('/village', methods=['GET', 'POST'])
+def village_settings():
+    error = None
+    with village_lock:
+        recover_raids()
+        normalize_legacy_village_name(session['USERID'])
+        info = save_info(session['USERID'])
+        name = request.form.get('village_name', info['name'])
+        if request.method == 'POST':
+            validate_csrf()
+            try:
+                rename_village(session['USERID'], name)
+            except VillageNameError as exc:
+                error = str(exc)
+            except OSError:
+                abort(503, description='Não foi possível salvar o nome da vila. Tente novamente.')
+            else:
+                flash('Nome da vila atualizado.', 'success')
+                return redirect(url_for('village_settings'), code=303)
+    return render_template('village.html', village=info, village_name=name, error=error, name_max_length=MAX_VILLAGE_NAME_LENGTH), 400 if error else 200
+
+
+@app.get('/village/events')
+def village_events():
+    with village_lock:
+        recover_raids()
+        return {'revision': village_revision(session['USERID'])}
+
+
+@app.get('/rivals')
+def rival_villages():
+    with village_lock:
+        recover_raids()
+        try:
+            overview = raids().overview(session['USERID'], eligible_village_ids())
+        except RaidError as exc:
+            abort(400, description=str(exc))
+        for rival in overview['rivals']:
+            rival['raid_token'] = raid_tokens().dumps({
+                'attacker': session['USERID'], 'defender': rival['userid'],
+                'nonce': secrets.token_hex(16),
+            })
+        last_battle = next((entry for entry in overview['history']
+                            if entry['id'] == request.args.get('battle') and entry['role'] == 'attacker'), None)
+    return render_template('rivals.html', **overview, last_battle=last_battle, server_now=timestamp_now())
+
+
+@app.post('/rivals/<defender_id>/raid')
+def raid_village(defender_id):
+    validate_csrf()
+    try:
+        token = raid_tokens().loads(request.form.get('raid_token', ''), max_age=3600)
+    except (BadSignature, SignatureExpired):
+        abort(400, description='A solicitação de ataque expirou ou é inválida. Volte à lista de rivais e tente novamente.')
+    if not isinstance(token, dict) or token.get('attacker') != session['USERID'] or token.get('defender') != defender_id:
+        abort(403, description='A solicitação de ataque não pertence à sua vila ou a este rival.')
+    with village_lock:
+        recover_raids()
+        try:
+            result = raids().raid(session['USERID'], defender_id, eligible_village_ids(), token.get('nonce'))
+        except RaidError as exc:
+            flash(str(exc), 'error')
+            return redirect(url_for('rival_villages'), code=303)
+        except (OSError, sqlite3.Error):
+            app.logger.exception('A transferência do saque aguarda recuperação.')
+            abort(503, description='Não foi possível finalizar o saque agora. A transferência será recuperada antes da próxima ação; atualize a página em instantes.')
+    return redirect(url_for('rival_villages', battle=result['id']), code=303)
 
 @app.route("/ruffle.html")
 def ruffle():
-    print(session)
-
-    if 'USERID' not in session:
-        return redirect("/")
-    if 'GAMEVERSION' not in session:
-        return redirect("/")
-
-    if session['USERID'] not in all_saves_userid():
-        return redirect("/")
-    
-    USERID = session['USERID']
-    GAMEVERSION = session['GAMEVERSION']
-    print("[RUFFLE] USERID:", USERID)
-    print("[RUFFLE] GAMEVERSION:", GAMEVERSION)
-    return render_template("ruffle.html", save_info=save_info(USERID), serverTime=timestamp_now(), version=version_name, GAMEVERSION=GAMEVERSION, SERVERIP=host)
+    return redirect(url_for('play'))
 
 
 @app.route("/new.html")
 def new():
-    session['USERID'] = new_village()
-    session['GAMEVERSION'] = "SocialEmpires0926bsec.swf"
-    return redirect("play.html")
+    return redirect(url_for('play'))
 
 @app.route("/crossdomain.xml")
 def crossdomain():
@@ -113,6 +577,16 @@ def images(path):
 @app.route("/css/<path:path>")
 def css(path):
     return send_from_directory(TEMPLATES_DIR + "/css", path)
+
+
+@app.get('/js/<path:path>')
+def javascript(path):
+    return send_from_directory(TEMPLATES_DIR + '/js', path)
+
+
+@app.get('/vendor/ruffle/<path:path>')
+def ruffle_assets(path):
+    return send_from_directory(TEMPLATES_DIR + '/vendor/ruffle', path)
 
 ## GAME STATIC
 
@@ -131,33 +605,17 @@ def similar_05122012_dynamic():
 
 @app.route("/default01.static.socialpointgames.com/static/socialempires/<path:path>")
 def static_assets_loader(path):
-    # return send_from_directory(ASSETS_DIR, path)
-    if not os.path.exists(ASSETS_DIR + "/"+ path):
-        # File does not exists in provided assets
-        if not os.path.exists(f"{BASE_DIR}/download_assets/assets/{path}"):
-            # Download file from SP's CDN if it doesn't exist
+    if path == f'flash/{GAME_VERSION}':
+        movie, checksum = portuguese_game_movie()
+        return send_file(BytesIO(movie), mimetype='application/x-shockwave-flash', download_name=GAME_VERSION, etag=checksum, conditional=True)
+    return send_from_directory(ASSETS_DIR, path)
 
-            # Make directory
-            directory = os.path.dirname(f"{BASE_DIR}/download_assets/assets/{path}")
-            if not os.path.exists(directory):
-                os.makedirs(directory)
 
-            # Download File
-            URL = f"https://static.socialpointgames.com/static/socialempires/assets/{path}"
-            try:
-                response = urllib.request.urlretrieve(URL, f"{BASE_DIR}/download_assets/assets/{path}")
-            except urllib.error.HTTPError:
-                return ("", 404)
-
-            print(f"====== DOWNLOADED ASSET: {URL}")
-            return send_from_directory("{BASE_DIR}/download_assets/assets", path)
-        else:
-            # Use downloaded CDN asset
-            print(f"====== USING EXTERNAL: download_assets/assets/{path}")
-            return send_from_directory("{BASE_DIR}/download_assets/assets", path)
-    else:
-        # Use provided asset
-        return send_from_directory(ASSETS_DIR, path)
+@lru_cache(maxsize=1)
+def portuguese_game_movie():
+    original = (Path(ASSETS_DIR) / 'flash' / GAME_VERSION).read_bytes()
+    translated = patch_private_economy(localize_swf(original))
+    return translated, hashlib.sha256(translated).hexdigest()
 
 ## GAME DYNAMIC
 
@@ -167,7 +625,7 @@ def track_game_status_response():
     installId = request.values['installId']
     user_id = request.values['user_id']
 
-    print(f"track_game_status: status={status}, installId={installId}, user_id={user_id}. --", request.values)
+    app.logger.info('Client status for player %s: %s', user_id, status[:100])
     return ("", 200)
 
 @app.route("/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/get_game_config.php", methods=['GET','POST'])
@@ -180,8 +638,7 @@ def get_game_config_response():
         spdebug = request.values['spdebug']
     language = request.values['language']
 
-    print(f"get_game_config: USERID: {USERID}. --", request.values)
-    return get_game_config()
+    return get_game_config('pt-BR')
 
 @app.route("/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/get_player_info.php", methods=['POST'])
 def get_player_info_response():
@@ -195,22 +652,21 @@ def get_player_info_response():
     user = request.values['user'] if 'user' in request.values else None
     map = int(request.values['map']) if 'map' in request.values else None
 
-    print(f"get_player_info: USERID: {USERID}. user: {user} --", request.values)
-
-    # Current Player
-    if user is None:
-        return (get_player_info(USERID), 200)
-    # Arthur
-    elif user == Constant.NEIGHBOUR_ARTHUR_GUINEVERE_1 \
-    or user == Constant.NEIGHBOUR_ARTHUR_GUINEVERE_2 \
-    or user == Constant.NEIGHBOUR_ARTHUR_GUINEVERE_3:
-        return (get_neighbor_info(user, map), 200)
-    # Quest
-    elif user.startswith("100000"): # Dirty but quick
-        return get_quest_map(user)
-    # Neighbor
-    else:
-        return (get_neighbor_info(user, map), 200)
+    with village_lock:
+        recover_raids()
+        validate_game_key(USERID)
+        # Copy before releasing the lock: JSON serialization must see one state.
+        if user is None:
+            return (copy.deepcopy(get_player_info(USERID)), 200)
+        elif user in (Constant.NEIGHBOUR_ARTHUR_GUINEVERE_1, Constant.NEIGHBOUR_ARTHUR_GUINEVERE_2, Constant.NEIGHBOUR_ARTHUR_GUINEVERE_3):
+            return (copy.deepcopy(get_neighbor_info(user, map if map is not None else 0)), 200)
+        elif user.startswith("100000"):
+            return get_quest_map(user)
+        else:
+            from sessions import neighbor_session
+            if neighbor_session(user) is None:
+                abort(404, description='Vila não encontrada.')
+            return (copy.deepcopy(get_neighbor_info(user, map if map is not None else 0)), 200)
 
 @app.route("/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/sync_error_track.php", methods=['POST'])
 def sync_error_track_response():
@@ -229,21 +685,11 @@ def sync_error_track_response():
     description = request.values['description']
     user_id = request.values['user_id']
 
-    print(f"sync_error_track: USERID: {USERID}. [Error: {error}] tries: {tries}. --", request.values)
+    app.logger.info('Client sync error for player %s', USERID)
     return ("", 200)
 
 @app.route("/null")
 def flash_sync_error_response():
-    sp_ref_cat = request.values['sp_ref_cat']
-
-    if sp_ref_cat == "flash_sync_error":
-        reason = "reload On Sync Error"
-    elif sp_ref_cat == "flash_reload_quest":
-        reason = "reload On End Quest"
-    elif sp_ref_cat == "flash_reload_attack":
-        reason = "reload On End Attack"
-
-    print("flash_sync_error", reason, ". --", request.values)
     return redirect("/play.html")
 
 @app.route("/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/command.php", methods=['POST'])
@@ -257,15 +703,25 @@ def command_response():
     language = request.values['language']
     client_id = request.values['client_id']
 
-    print(f"command: USERID: {USERID}. --", request.values)
-
     data_str = request.values['data']
-    data_hash = data_str[:64]
-    assert data_str[64] == ';'
-    data_payload = data_str[65:]
-    data = json.loads(data_payload)
+    if len(data_str) < 66 or data_str[64] != ';':
+        abort(400, description='Pacote de comandos inválido.')
+    try:
+        data = json.loads(data_str[65:])
+    except (ValueError, TypeError):
+        abort(400, description='Pacote de comandos inválido.')
+    if not isinstance(data, dict) or not isinstance(data.get('commands'), list) or not all(key in data for key in ('ts', 'first_number', 'accessToken', 'tries', 'publishActions')):
+        abort(400, description='Pacote de comandos inválido.')
+    if not all(isinstance(item, dict) and isinstance(item.get('cmd'), str) and isinstance(item.get('args'), list) for item in data['commands']):
+        abort(400, description='Pacote de comandos inválido.')
 
-    command(USERID, data)
+    with village_lock:
+        recover_raids()
+        validate_game_key(USERID)
+        try:
+            command(USERID, data)
+        except VillageNameError as exc:
+            abort(400, description=str(exc))
     
     return ({"result": "success"}, 200)
 
@@ -300,8 +756,23 @@ def get_continent_ranking_response():
 # MAIN #
 ########
 
+
+@app.cli.command('create-admin')
+@click.option('--name', prompt='Nome do administrador')
+@click.option('--email', prompt='E-mail')
+@click.option('--password', prompt='Senha (mínimo de 10 caracteres)', hide_input=True, confirmation_prompt=True)
+@click.option('--village-id', default=None, help='Vincula um save existente e ainda não associado a uma conta.')
+def create_admin(name, email, password, village_id):
+    """Cria um administrador aprovado, sem senha padrão."""
+    if village_id and village_id not in all_saves_userid():
+        raise click.ClickException('O save informado não existe. Use o PID do arquivo em saves/.')
+    try:
+        account = accounts().create_admin(name, email, password, village_id=village_id)
+    except AccountError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Administrador criado: {account['email']}. Entre e acesse /admin para aprovar os cadastros.")
+
 print (" [+] Running server...")
 
 if __name__ == '__main__':
-    app.secret_key = 'SECRET_KEY'
-    app.run(host=host, port=port, debug=False)
+    app.run(host=host, port=port, debug=False, threaded=False)

@@ -1,113 +1,94 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <!-- Meta -->
-        <meta charset="utf-8"/>
-        <!-- Title and Icon -->
-        <title id="pageTitle">Social Empires</title>
-        <link rel="shortcut icon" href="img/icon.gif"/>
-        <link rel="icon" type="image/png" href="img/icon.gif"/>
-    </head>
-    <body style="font-family: 'lucida grande',tahoma,verdana,arial,sans-serif">
-    <center>
-        <!-- SESSION HEADER -->
-        <div id="header" style="width: 760px; margin-top: 50px;">
-            <div id="session" style="float: right;">
-                <p style="display:inline">Logged in as <b>{{save_info.name}}</b> lvl {{save_info.level}} (<a href="/">logout</a>)</p>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>{{ save_info.name }} · Social Empires</title>
+    <link rel="icon" href="{{ url_for('images', path='icon.gif') }}">
+    <link rel="stylesheet" href="{{ url_for('css', path='game.css') }}">
+    <script id="game-config" type="application/json">{{ {
+        'baseUrl': request.url_root,
+        'gameVersion': GAMEVERSION,
+        'userId': save_info.userid,
+        'userKey': game_user_key | default(csrf_token()),
+        'friendsInfo': friendsInfo | default([]),
+        'serverTime': serverTime,
+        'lastLoggedIn': last_logged_in | default(serverTime),
+        'locale': 'pt-BR',
+        'raidRevision': raid_revision | default(''),
+        'eventsUrl': url_for('village_events'),
+    } | tojson }}</script>
+    <script src="/js/game.js" defer></script>
+</head>
+<body class="tab-expanded">
+    <a class="skip-link" href="#vila">Ir para a vila</a>
+    <header class="game-header">
+        <a class="brand" href="{{ url_for('play') }}" aria-label="Social Empires, minha vila">
+            <img src="{{ url_for('images', path='logo.png') }}" alt="Social Empires" width="170">
+        </a>
+        <nav aria-label="Conta">
+            <a href="/rivals">Rivais e saques</a>
+            <a href="{{ url_for('treasury') }}">Tesouro</a>
+            {% if current_account and current_account.is_admin %}<a href="/admin">Administração</a>{% endif %}
+            <form action="/logout" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="text-button" type="submit">Sair da conta</button>
+            </form>
+        </nav>
+    </header>
+    <main class="game-main">
+        <div class="village-heading">
+            <div>
+                <h1>{{ save_info.name }}</h1>
+                <p>Sua vila · nível {{ save_info.level }}</p>
             </div>
         </div>
-        <br>
-        <!-- GAME BAR -->
-        <div id="gameBar" style="margin-top: 15px;">
-            <!-- GAME BAR TOP -->
-            <div id="gamebar_top" style="width: 760px; height: 90px;">
-                <div style="float: left; margin-left:155px; padding: 4px; font-size: 10pt">
-                    <!-- VERSION -->
-                    <br><br><br>
-                    <p style="display: inline">{{ version }}</p>
+        <section id="vila" class="game-shell is-expanded" aria-label="Sua vila no Social Empires" tabindex="-1">
+            <aside id="controls-dock" class="controls-dock" aria-label="Controles do jogo">
+                <button id="controls-toggle" class="controls-toggle" type="button" aria-controls="controls-panel" aria-expanded="false" title="Controles do jogo" hidden>
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <span class="visually-hidden">Controles</span>
+                </button>
+                <div id="controls-panel" class="controls-panel" hidden>
+                    <div id="village-update" class="village-update" role="status" hidden>
+                        <p>Sua vila foi atualizada. Recarregue para continuar jogando.</p>
+                        <a href="/play.html">Atualizar vila</a>
+                    </div>
+                    <div class="audio-controls">
+                        <div class="volume-label">
+                            <label for="game-volume">Volume</label>
+                            <output id="volume-value" for="game-volume">100%</output>
+                        </div>
+                        <input id="game-volume" type="range" min="0" max="100" step="1" value="100" aria-valuetext="100%" disabled>
+                        <button id="mute-button" class="secondary-button" type="button" aria-pressed="false" hidden>Silenciar</button>
+                    </div>
+                    <div class="view-controls">
+                        <button id="expand-button" class="secondary-button" type="button" aria-controls="vila" aria-pressed="true" hidden>Restaurar janela</button>
+                        <button id="fullscreen-button" class="secondary-button" type="button" aria-controls="vila" hidden>Tela cheia</button>
+                        <a class="secondary-button" href="/village">Nome da vila</a>
+                        <a class="secondary-button" href="/rivals">Rivais e saques</a>
+                        <a class="secondary-button" href="{{ url_for('treasury') }}">Tesouro gratuito</a>
+                        {% if current_account and current_account.is_admin %}<a class="secondary-button" href="{{ url_for('admin_villages') }}">Gerenciar vilas</a>{% endif %}
+                    </div>
                 </div>
+                <span id="audio-status" class="visually-hidden" role="status" aria-live="polite"></span>
+            </aside>
+            <div class="game-stage">
+                <div id="game-player" class="game-player"></div>
+                <div id="game-loading" class="game-loading" role="status" aria-live="polite">
+                    <img src="{{ url_for('images', path='knight.png') }}" width="52" height="64" alt="">
+                    <h2 id="loading-title">Preparando sua vila</h2>
+                    <p id="loading-message">Carregando o jogo no navegador. Na primeira visita, isso pode levar alguns instantes.</p>
+                    <button id="retry-button" class="primary-button" type="button" hidden>Tentar novamente</button>
+                </div>
+                <noscript><p class="noscript-message">Ative o JavaScript no navegador para carregar sua vila.</p></noscript>
             </div>
-            <!-- GAME BAR BUTTONS -->
-            <div id="gamebar_buttons" style="width: 760px;">
-                &nbsp;
-                <a class="gameBarButton" href="#"><div><img src="img/gift.png">Free Gifts</div></a>
-                <a class="gameBarButton gameBarButtonSelected" href="#"><div><img>Play</div></a>
-                <a class="gameBarButton" href="#"><div><img src="img/cash.png">Get Cash</div></a>
-                <a class="gameBarButton" href="https://discord.gg/zW5gSbQJBw" target="_blank"><div><img src="img/discord.png">Discord</div></a>
-                <a class="gameBarButton" href="https://github.com/AcidCaos/socialemperors#readme" target="_blank"><div><img src="img/github.png">GitHub</div></a>
-            </div>
-            <style>
-                #gameBar {
-                    text-align: left;
-                    width: 760px;
-                    margin-bottom: 0px;
-                    padding: 0px;
-                    background-color:rgb(137, 187, 15);
-                    background-image: url('img/Gamebar_byTrevo.png');
-                    background-repeat: no-repeat;
-                    background-size: contain;
-                    border-bottom: solid #6e5335 3px;
-                }
-                .gameBarButton {
-                    display: inline-block;
-                    height: 19px;
-                    color: black;
-                    border: solid 1.5px;
-                    border-color: #9e7747;
-                    background-color:rgb(255, 245, 131);
-                    border-top-left-radius: 5px;
-                    border-top-right-radius: 5px;
-                    cursor: pointer;
-                    text-decoration: none;
-                    font-size: 11pt;
-                    padding: 2px 3px 1px 3px; 
-                }
-
-                .gameBarButtonSelected {
-                    background-color:rgb(233, 221, 81);
-                }
-
-                .gameBarButton img {
-                    height: 17px;
-                    padding-right: 3px;
-                    vertical-align: middle;
-                }
-
-                .gameBarButton:hover {
-                    background-color:rgb(250, 237, 90);
-                    text-decoration: none;
-                }
-
-                .gameBarButtonSelected:hover {
-                    background-color:rgb(223, 212, 82);
-                }
-
-            </style>
+        </section>
+        <div class="game-footer">
+            <p id="game-status" role="status" aria-live="polite">Conectando à sua vila…</p>
+            <span>{{ version }}</span>
         </div>
-        <!-- EMBED GAME -->
-        <object>
-            <embed
-                src="http://{{SERVERIP}}:5050/default01.static.socialpointgames.com/static/socialempires/flash/SELoader.swf?swftoload=http://{{SERVERIP}}:5050/default01.static.socialpointgames.com/static/socialempires/flash/{{GAMEVERSION}}" 
-                allowFullScreen="true" bgcolor="#669C2C" quality=high WIDTH="760" HEIGHT="600" NAME="se" ALIGN=""
-                TYPE="application/x-shockwave-flash" PLUGINSPAGE="http://www.macromedia.com/go/getflashplayer"
-                flashvars='spdebug=notnull&brk=0
-                &staticUrl=http://{{SERVERIP}}:5050/default01.static.socialpointgames.com/static/socialempires/&brk=0
-                &dynamicUrl=http://{{SERVERIP}}:5050/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/&brk=0
-                &skiphash12341=notnull&brk=0
-                &fb_sig_user={{save_info.userid}}&brk=0
-                &user_key=123456789&brk=0
-                &language=en&brk=0
-                &accessToken=AAABbZAm0wdMUBALsOrR0Ho68CLjaOT8SV3vftKg9mbo1zZColaW5FljRVaLxPGxXXnm1M98mTZCAttcQ4GHwvSyXfsyxYmvKMH8Hmn5iliSPnjvIsZA6&brk=0
-                &sex=m&brk=0
-                &lastLoggedIn=1349266517&brk=0
-                &dailyBonus=0&brk=0
-                &friendsInfo={{friendsInfo | tojson}}&brk=0
-                &serverTime={{serverTime}}&brk=0
-                &forceSyncError=1&brk=0
-                &forceAttackReload=0&brk=0
-                &forceQuestReload=0&brk=0'>
-            </embed>
-        </object>
-    </center>
-    </body>
+        <p class="mobile-hint">Para ver melhor sua vila no celular, use a tela na horizontal.</p>
+    </main>
+</body>
 </html>

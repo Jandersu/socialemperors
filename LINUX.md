@@ -1,5 +1,8 @@
 # Linux
 
+> As instruções abaixo são históricas. A versão atual roda no navegador com Ruffle e não exige Flash ou Chromium antigo. Para instalação, cadastro e aprovação pelo administrador, siga o [README](README.md#jogar-no-navegador-com-cadastro-e-aprovação).
+
+
 :warning: To play on GNU/Linux, you have to run the server from source.
 
 You will need:

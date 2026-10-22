@@ -1,0 +1,72 @@
+.management-main { max-width: 1040px; margin: 40px auto; padding: 0 28px; }
+.management-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.management-heading p { max-width: 65ch; margin-top: 8px; color: var(--muted); }
+.management-heading .button { flex-shrink: 0; }
+.management-nav { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0 0 28px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.management-nav a { padding: 6px 0; text-decoration: none; }
+.management-nav a:hover { text-decoration: underline; }
+.management-nav [aria-current="page"] { color: var(--ink); font-weight: 700; text-decoration: underline; }
+.management-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .93rem; }
+.management-table th { color: var(--muted); font-size: .85rem; font-weight: 700; }
+.management-table th, .management-table td { padding: 16px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.management-table th:first-child, .management-table td:first-child { padding-left: 0; }
+.management-table th:last-child, .management-table td:last-child { padding-right: 0; }
+.management-table strong { display: block; color: var(--ink); overflow-wrap: anywhere; }
+.management-table .player-detail { display: block; margin-top: 3px; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.management-table .status { margin-top: 7px; }
+.management-resources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 18px; font-variant-numeric: tabular-nums; }
+.management-resources span { white-space: nowrap; }
+.management-table .manage-link { white-space: nowrap; }
+.management-empty { padding: 30px 0; border-top: 1px solid var(--line); }
+.management-empty p { max-width: 65ch; margin-top: 8px; color: var(--muted); }
+.village-owner { margin-bottom: 28px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.village-owner p + p { margin-top: 5px; }
+.village-owner .player-detail { color: var(--muted); overflow-wrap: anywhere; }
+.management-form { max-width: 760px; }
+.management-form fieldset { margin: 0 0 30px; padding: 0; border: 0; min-width: 0; }
+.management-form legend { width: 100%; margin-bottom: 16px; color: var(--ink); font-size: 1.2rem; font-weight: 700; }
+.management-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.management-fields .field-full { grid-column: 1 / -1; }
+.management-form select, .management-form textarea { width: 100%; min-height: 44px; border: 1px solid #aebacc; border-radius: 5px; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--surface); caret-color: var(--blue); transition: border-color 150ms; }
+.management-form textarea { min-height: 96px; resize: vertical; }
+.management-form select:hover, .management-form textarea:hover { border-color: #7285a4; }
+.management-form select:focus, .management-form textarea:focus { border-color: var(--blue); }
+.management-form .notice { margin-bottom: 24px; }
+.management-form .form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 22px; }
+.management-form .form-actions p { max-width: 52ch; color: var(--muted); font-size: .85rem; }
+.management-section { margin-top: 40px; }
+.management-section h2 { font-size: 1.3rem; margin-bottom: 14px; }
+.management-history { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.management-history > li { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.management-history p + p { margin-top: 5px; }
+.management-history .audit-meta { color: var(--muted); font-size: .85rem; }
+.management-history dl { display: flex; flex-wrap: wrap; gap: 5px 20px; margin: 10px 0 0; font-size: .93rem; }
+.management-history dl > div { display: flex; gap: 6px; }
+.management-history dt { color: var(--muted); }
+.management-history dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.treasury-main { max-width: 840px; }
+.treasury-balance { display: flex; justify-content: space-between; gap: 20px; padding: 20px 0; margin-bottom: 28px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.treasury-balance dt { color: var(--muted); }
+.treasury-balance dd { margin: 0; color: var(--ink); font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.treasury-reward { max-width: 65ch; }
+.treasury-reward h2 { margin-bottom: 8px; font-size: 1.3rem; }
+.treasury-reward p + p { margin-top: 10px; }
+.treasury-reward form { margin-top: 20px; }
+.treasury-rules { padding-left: 20px; max-width: 65ch; }
+.treasury-rules li + li { margin-top: 8px; }
+@media (max-width: 680px) {
+    .management-main { margin-top: 28px; padding: 0 20px; }
+    .management-heading { display: block; }
+    .management-heading .button { margin-top: 18px; }
+    .management-table, .management-table tbody, .management-table tr, .management-table td { display: block; }
+    .management-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .management-table tr { padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .management-table tr:first-child { border-top: 1px solid var(--line); }
+    .management-table td { padding: 0; border: 0; }
+    .management-table td + td { margin-top: 14px; }
+    .management-table td::before { display: block; margin-bottom: 4px; color: var(--muted); font-size: .8rem; content: attr(data-label); }
+    .management-table td:first-child::before { display: none; }
+    .management-resources { max-width: 380px; }
+    .management-fields { grid-template-columns: minmax(0, 1fr); }
+    .treasury-balance { align-items: baseline; }
+}

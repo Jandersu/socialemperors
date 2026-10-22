@@ -1,0 +1,51 @@
+"""Load the Portuguese button images for the derived game movie.
+
+The original SWF and every other bitmap remain intact. Two unexported textures
+use four times as many pixels on each axis, with matching shape matrices from
+swf_hd_art. Exported BitmapData retains its dimensions for AS3 compatibility.
+Assets contain Flash format-5 premultiplied ARGB pixels, packed in preparation.
+"""
+
+from pathlib import Path
+import struct
+import zlib
+
+from bundle import CONFIG_DIR
+from swf_hd_art import HD_BITMAP_IDS, HD_SCALE
+
+
+ARTWORK_DIR = Path(CONFIG_DIR) / 'locales' / 'artwork'
+BITMAP_DIMENSIONS = {31: (63, 68), 220: (118, 33), 3948: (71, 99), 3967: (157, 59)}
+BITMAP_RENDER_DIMENSIONS = {
+    character_id: tuple(value * HD_SCALE for value in size) if character_id in HD_BITMAP_IDS else size
+    for character_id, size in BITMAP_DIMENSIONS.items()
+}
+
+
+def load_bitmap_art(character_id):
+    width, height = BITMAP_RENDER_DIMENSIONS[character_id]
+    suffix = '-hd' if character_id in HD_BITMAP_IDS else ''
+    compressed = (ARTWORK_DIR / f'pt-BR-{character_id}{suffix}.argb.zlib').read_bytes()
+    try:
+        pixels = zlib.decompress(compressed)
+    except zlib.error as error:
+        raise ValueError(f'Invalid Portuguese artwork for SWF bitmap {character_id}') from error
+    if len(pixels) != width * height * 4:
+        raise ValueError(f'Incorrect Portuguese artwork size for SWF bitmap {character_id}')
+    # Flash Lossless2 format 5 expects alpha, red, green, blue, with each color
+    # component multiplied by alpha. Validate the packed artifact at its boundary.
+    if any(max(pixels[offset + 1:offset + 4]) > pixels[offset] for offset in range(0, len(pixels), 4)):
+        raise ValueError(f'Artwork for SWF bitmap {character_id} is not premultiplied ARGB')
+    return compressed
+
+
+def localize_bitmap_art(payload):
+    """Replace allowlisted textures and their validated dimensions."""
+    character_id = struct.unpack_from('<H', payload)[0]
+    if character_id not in BITMAP_DIMENSIONS:
+        return payload
+    bitmap_format, width, height = struct.unpack_from('<BHH', payload, 2)
+    if bitmap_format != 5 or (width, height) != BITMAP_DIMENSIONS[character_id]:
+        raise ValueError(f'Unexpected original SWF bitmap layout for {character_id}')
+    render_width, render_height = BITMAP_RENDER_DIMENSIONS[character_id]
+    return struct.pack('<HBHH', character_id, bitmap_format, render_width, render_height) + load_bitmap_art(character_id)
